@@ -133,11 +133,12 @@ export function PromptEditor({ initialPrompt, onSave }: PromptEditorProps) {
         ref={contentRef}
         contentEditable
         onInput={handleInputChange}
-        className="min-h-[200px] p-4 border rounded-md font-mono text-sm focus:outline-none whitespace-pre-wrap"
-        placeholder="Enter the system prompt template here..."
+        className={`min-h-[200px] p-4 border rounded-md font-mono text-sm focus:outline-none whitespace-pre-wrap ${
+          prompt ? "" : "text-gray-400"
+        }`}
         suppressContentEditableWarning={true}
       >
-        {prompt}
+        {prompt || "Enter the system prompt template here..."}
       </div>
 
       {/* Highlighted preview */}
