@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -29,7 +29,6 @@ const RECOGNIZED_VARIABLES = [
 
 export function PromptEditor({ initialPrompt, onSave }: PromptEditorProps) {
   const [prompt, setPrompt] = useState(initialPrompt);
-  const [highlightedPrompt, setHighlightedPrompt] = useState(initialPrompt);
   const [errors, setErrors] = useState<string[]>([]);
   const [tooltipOpen, setTooltipOpen] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -40,8 +39,6 @@ export function PromptEditor({ initialPrompt, onSave }: PromptEditorProps) {
     if (validation.isValid) {
       setErrors([]);
       onSave(prompt);
-      // Highlight variables after saving
-      highlightVariables();
     } else {
       setErrors(validation.errors);
     }
@@ -52,20 +49,36 @@ export function PromptEditor({ initialPrompt, onSave }: PromptEditorProps) {
     setPrompt(newText);
   };
 
-  const highlightVariables = () => {
-    let content = prompt;
-    content = content.replace(
-      /{{(.*?)}}/g,
-      (_, variable) => {
-        if (RECOGNIZED_VARIABLES.includes(variable.trim())) {
-          return `<span class="recognized">{{${variable}}}</span>`;
+  const renderHighlightedPrompt = () => {
+    const parts = prompt.split(/({{.*?}})/g);
+
+    return parts.map((part, index) => {
+      const match = part.match(/{{\s*(.*?)\s*}}/);
+      if (match) {
+        const variable = match[1];
+        if (RECOGNIZED_VARIABLES.includes(variable)) {
+          return (
+            <span key={index} className="recognized">
+              {`{{${variable}}}`}
+            </span>
+          );
         } else {
-          return `<span class="unrecognized">{{${variable}}}</span>`;
+          return (
+            <span key={index} className="unrecognized">
+              {`{{${variable}}}`}
+            </span>
+          );
         }
       }
-    );
-    setHighlightedPrompt(content);
+      return <span key={index}>{part}</span>;
+    });
   };
+
+  useEffect(() => {
+    if (contentRef.current) {
+      contentRef.current.innerText = prompt || "Enter the system prompt template here...";
+    }
+  }, []); // Only run on mount
 
   return (
     <Card className="p-6">
@@ -137,15 +150,12 @@ export function PromptEditor({ initialPrompt, onSave }: PromptEditorProps) {
           prompt ? "" : "text-gray-400"
         }`}
         suppressContentEditableWarning={true}
-      >
-        {prompt || "Enter the system prompt template here..."}
-      </div>
+      ></div>
 
       {/* Highlighted preview */}
-      <div
-        className="mt-4 p-4 border rounded-md font-mono text-sm bg-gray-50"
-        dangerouslySetInnerHTML={{ __html: highlightedPrompt }}
-      />
+      <div className="mt-4 p-4 border rounded-md font-mono text-sm bg-gray-50">
+        {renderHighlightedPrompt()}
+      </div>
     </Card>
   );
 }
