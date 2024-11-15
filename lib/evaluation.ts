@@ -3,7 +3,7 @@ import { buildBarbershopPrompt } from './prompt-builder';
 import { type ConversationData, type EvaluationResult, isChatCompletionAssistantMessageParam } from './types';
 import { Completions } from 'openai/resources/chat/completions';
 
-const TOOLS: Completions.ChatCompletionTool[] = [
+export const TOOLS: Completions.ChatCompletionTool[] = [
   {
     type: 'function',
     function: {

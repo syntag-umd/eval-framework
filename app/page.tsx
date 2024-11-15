@@ -7,6 +7,7 @@ import { FileList } from '@/components/file-list';
 import { EvaluationViewer } from '@/components/evaluation-viewer';
 import { JsonFormatTooltip } from '@/components/json-format-tooltip';
 import { PromptEditor } from '@/components/prompt-editor';
+import { ChatPlayground } from '@/components/chat-playground';
 import { Upload, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
@@ -37,9 +38,9 @@ export default function Home() {
   const [error, setError] = useState<string>('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationProgress, setEvaluationProgress] = useState(0);
-  const [evaluationResults, setEvaluationResults] = useState<
-    EvaluationResult[]
-  >([]);
+  const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>(
+    []
+  );
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_PROMPT);
   const [activeTab, setActiveTab] = useState('viewer');
 
@@ -217,6 +218,7 @@ export default function Home() {
                 <TabsTrigger value="viewer">Conversation Viewer</TabsTrigger>
                 <TabsTrigger value="evaluation">Evaluation Results</TabsTrigger>
                 <TabsTrigger value="prompt">System Prompt</TabsTrigger>
+                <TabsTrigger value="playground">Playground</TabsTrigger>
               </TabsList>
 
               <TabsContent value="viewer">
@@ -251,6 +253,10 @@ export default function Home() {
                   initialPrompt={systemPrompt}
                   onSave={setSystemPrompt}
                 />
+              </TabsContent>
+
+              <TabsContent value="playground">
+                <ChatPlayground systemPrompt={systemPrompt} />
               </TabsContent>
             </Tabs>
           </div>

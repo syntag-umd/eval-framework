@@ -55,18 +55,31 @@ export function MessageViewer({
   dialogId,
 }: MessageViewerProps) {
   const renderToolCalls = (toolCalls: any[]) => {
-    return toolCalls.map((tool: any, i: number) => (
-      <div key={i} className="mt-2 text-sm opacity-80 border-t pt-2">
-        <div className="flex items-center gap-2">
-          <Wrench className="h-4 w-4" />
-          <span className="font-medium">{tool.name || tool.function?.name}</span>
+    return toolCalls.map((tool: any, i: number) => {
+      // Parse arguments if they're a string
+      let parsedArgs = tool.function?.arguments || {};
+      if (typeof parsedArgs === 'string') {
+        try {
+          parsedArgs = JSON.parse(parsedArgs);
+        } catch (e) {
+          console.error('Failed to parse arguments:', e);
+        }
+      }
+  
+      return (
+        <div key={i} className="mt-2 text-sm opacity-80 border-t pt-2">
+          <div className="flex items-center gap-2">
+            <Wrench className="h-4 w-4" />
+            <span className="font-medium">{tool.name || tool.function?.name}</span>
+          </div>
+          <div className="mt-1 font-mono text-xs overflow-x-auto whitespace-pre-wrap break-all">
+            {JSON.stringify(parsedArgs, null, 2)}
+          </div>
         </div>
-        <div className="mt-1 font-mono text-xs">
-          {JSON.stringify(tool.arguments || tool.function?.arguments, null, 2)}
-        </div>
-      </div>
-    ));
+      );
+    });
   };
+  
 
   return (
     <Card className="p-6">
