@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, CheckCircle2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ConversationDisplay } from "@/components/conversation-display";
+import { ComparisonPromptEditor } from "@/components/comparison-prompt-editor";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { EvaluationResult } from "@/lib/types";
 
 interface EvaluationViewerProps {

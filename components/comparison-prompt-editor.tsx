@@ -11,23 +11,13 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { validatePromptTemplate } from "@/lib/prompt-builder";
 
-interface PromptEditorProps {
+interface ComparisonPromptEditorProps {
   initialPrompt: string;
   onSave: (newPrompt: string) => void;
 }
 
-const RECOGNIZED_VARIABLES = [
-  "shop_name",
-  "shop_address",
-  "shop_schedule",
-  "hardcoded_datetime",
-  "barbers",
-  "services",
-];
-
-export function PromptEditor({ initialPrompt, onSave }: PromptEditorProps) {
+export function ComparisonPromptEditor({ initialPrompt, onSave }: ComparisonPromptEditorProps) {
   const [prompt, setPrompt] = useState(initialPrompt);
   const [highlightedPrompt, setHighlightedPrompt] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
@@ -35,11 +25,36 @@ export function PromptEditor({ initialPrompt, onSave }: PromptEditorProps) {
   const [isSaved, setIsSaved] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
+  const validatePrompt = (text: string): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    const requiredVariables = ['generated_message', 'ideal_message'];
+    
+    requiredVariables.forEach(variable => {
+      if (!text.includes(`{{${variable}}}`)) {
+        errors.push(`Missing required variable: {{${variable}}}`);
+      }
+    });
+
+    const variableRegex = /\{\{(\w+)\}\}/g;
+    const matches = text.match(variableRegex) || [];
+    matches.forEach(match => {
+      const variable = match.slice(2, -2);
+      if (!requiredVariables.includes(variable)) {
+        errors.push(`Invalid variable: ${variable}`);
+      }
+    });
+
+    return {
+      isValid: errors.length === 0,
+      errors
+    };
+  };
+
   const highlightVariables = (text: string) => {
     return text.replace(
       /{{(.*?)}}/g,
       (_, variable) => {
-        if (RECOGNIZED_VARIABLES.includes(variable.trim())) {
+        if (['generated_message', 'ideal_message'].includes(variable.trim())) {
           return `<span class="recognized">{{${variable}}}</span>`;
         } else {
           return `<span class="unrecognized">{{${variable}}}</span>`;
@@ -56,7 +71,7 @@ export function PromptEditor({ initialPrompt, onSave }: PromptEditorProps) {
   }, [initialPrompt]);
 
   const handleSave = () => {
-    const validation = validatePromptTemplate(prompt);
+    const validation = validatePrompt(prompt);
 
     if (validation.isValid) {
       setErrors([]);
@@ -74,8 +89,10 @@ export function PromptEditor({ initialPrompt, onSave }: PromptEditorProps) {
     setIsSaved(false);
   };
 
+  const isEmpty = !prompt.trim();
+
   return (
-    <Card className="p-6">
+    <Card className="p-6 relative">
       <style>
         {`
           .recognized {
@@ -89,24 +106,20 @@ export function PromptEditor({ initialPrompt, onSave }: PromptEditorProps) {
           }
           .placeholder {
             position: absolute;
-            top: 0;
-            left: 0;
+            top: 16px;
+            left: 16px;
             color: #a1a1aa; /* Tailwind's gray-400 */
             pointer-events: none;
-            padding: 1rem;
-            font-family: monospace;
-            font-size: 0.875rem;
-            white-space: pre-wrap;
-          }
-          .relative-wrapper {
-            position: relative;
+            user-select: none;
+            font-family: inherit;
+            font-size: 0.875rem; /* text-sm */
           }
         `}
       </style>
 
       <div className="flex justify-between items-center mb-4">
         <div className="flex items-center gap-2">
-          <h2 className="text-xl font-semibold">System Prompt Template</h2>
+          <h2 className="text-xl font-semibold">Comparison Prompt Template</h2>
           <TooltipProvider>
             <Tooltip open={tooltipOpen} onOpenChange={setTooltipOpen}>
               <TooltipTrigger asChild>
@@ -122,8 +135,7 @@ export function PromptEditor({ initialPrompt, onSave }: PromptEditorProps) {
                 <p className="text-sm">
                   Available variables:
                   <br />
-                  {'{{shop_name}}'}, {'{{shop_address}}'}, {'{{shop_schedule}}'}
-                  , {'{{hardcoded_datetime}}'}, {'{{barbers}}'}, {'{{services}}'}
+                  {'{{generated_message}}'}, {'{{ideal_message}}'}
                 </p>
               </TooltipContent>
             </Tooltip>
@@ -152,9 +164,11 @@ export function PromptEditor({ initialPrompt, onSave }: PromptEditorProps) {
         </Alert>
       )}
 
-      <div className="relative-wrapper">
-        {prompt.trim() === "" && (
-          <span className="placeholder">Enter the system prompt template here...</span>
+      <div className="relative">
+        {isEmpty && (
+          <div className="placeholder">
+            Enter the comparison prompt template here...
+          </div>
         )}
         <div
           ref={contentRef}
@@ -166,7 +180,7 @@ export function PromptEditor({ initialPrompt, onSave }: PromptEditorProps) {
       </div>
 
       <div
-        className="mt-4 p-4 border rounded-md font-mono text-sm bg-gray-50"
+        className="mt-4 p-4 border rounded-md font-mono text-sm bg-gray-50 whitespace-pre-wrap"
         dangerouslySetInnerHTML={{ __html: highlightedPrompt }}
       />
     </Card>

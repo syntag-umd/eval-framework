@@ -191,23 +191,15 @@ const evaluateToolCalls = (
   });
 };
 
-const evaluateMessageSimilarity = async (
+export const evaluateMessageSimilarity = async (
   openai: OpenAI,
   generatedMessage: string,
-  idealMessage: string
+  idealMessage: string,
+  comparisonPrompt: string
 ): Promise<number> => {
-  const prompt = `
-Compare the following two messages and rate their similarity on a scale from 1 to 100 based on content, tone, and brevity.
-ONLY INCLUDE THE NUMBER IN YOUR RESPONSE.
-
-### Generated Message:
-${generatedMessage || 'None'}
-
-### Ideal Message:
-${idealMessage || 'None'}
-
-### Rating (1-100):
-`;
+  const prompt = comparisonPrompt
+    .replace('{{generated_message}}', generatedMessage || 'None')
+    .replace('{{ideal_message}}', idealMessage || 'None');
 
   try {
     const response = await openai.chat.completions.create({
@@ -232,27 +224,15 @@ export const evaluateConversations = async (
   openai: OpenAI,
   conversations: Array<[string, ConversationData]>,
   defaultPrompt: string,
+  comparisonPrompt: string,
   onProgress?: (progress: number) => void
 ): Promise<EvaluationResult[]> => {
   const total = conversations.length;
   let completed = 0;
 
-  /**
-   * Type guard to check if a message is of type ChatCompletionAssistantMessageParam
-   * @param message - The message to check
-   * @returns True if the message is ChatCompletionAssistantMessageParam, otherwise false
-   */
-
-  /**
-   * Sanitizes the tool_calls in assistant messages by stringifying the arguments
-   * @param messages - Array of messages to sanitize
-   * @returns A new array of sanitized messages
-   */
   const sanitizeMessages = (messages: MessageType[]): MessageType[] => {
     return messages.map((message) => {
-      // Use the type guard to check if the message is of assistant type
       if (isChatCompletionAssistantMessageParam(message)) {
-        // Sanitize each tool call
         const sanitizedToolCalls = message.tool_calls?.map((toolCall) => {
           if (
             toolCall.function &&
@@ -270,19 +250,16 @@ export const evaluateConversations = async (
           return toolCall;
         });
   
-        // Return a new message object with sanitized tool_calls
         return {
           ...message,
           tool_calls: sanitizedToolCalls,
         };
       }
   
-      // For all other message types, return them unmodified
       return message;
     });
   };
 
-  // Function to parse function.arguments back to objects
   const parseToolCalls = (toolCalls: Array<ToolCallType>): Array<ToolCallType> => {
     return toolCalls.map((toolCall, tcIndex) => {
       if (
@@ -302,8 +279,6 @@ export const evaluateConversations = async (
             `Failed to parse function.arguments for tool_call[${tcIndex}] in message:`,
             toolCall
           );
-          // Optionally, handle the error as needed
-          // For now, we'll leave the arguments as the original string
           return toolCall;
         }
       }
@@ -311,30 +286,22 @@ export const evaluateConversations = async (
     });
   };
 
-  // Create a function to evaluate a single conversation
   const evaluateConversation = async (
     [key, conversation]: [string, ConversationData],
     index: number
   ): Promise<EvaluationResult> => {
     try {
-      // Generate system prompt based on conversation config
       const systemPrompt = buildBarbershopPrompt(conversation.config, defaultPrompt);
-
-      // Construct the messages array
       const messages: MessageType[] = [
         { role: 'system', content: systemPrompt },
         ...conversation.input
       ];
-
-      // **Sanitize function.arguments to ensure they are strings**
       const sanitizedMessages = sanitizeMessages(messages);
-
       
-      // Make the API call with sanitized messages
       const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: sanitizedMessages,
-        tools: TOOLS, // Ensure TOOLS aligns with OpenAI's Function definitions
+        tools: TOOLS,
       });
 
       const responseMessage = response.choices[0].message as Completions.ChatCompletionMessage;
@@ -345,7 +312,6 @@ export const evaluateConversations = async (
         generatedToolCalls = responseMessage.tool_calls;
       }
 
-      // **Parse function.arguments back to objects**
       generatedToolCalls = parseToolCalls(generatedToolCalls);
 
       const idealResponse = conversation.output;
@@ -377,7 +343,8 @@ export const evaluateConversations = async (
         const score = await evaluateMessageSimilarity(
           openai,
           generatedContent,
-          idealMessage
+          idealMessage,
+          comparisonPrompt
         );
         result = {
           index,
@@ -392,7 +359,6 @@ export const evaluateConversations = async (
         };
       }
 
-      // Update progress
       completed++;
       if (onProgress) {
         onProgress((completed / total) * 100);
@@ -414,11 +380,9 @@ export const evaluateConversations = async (
     }
   };
 
-  // Process all conversations concurrently
   const results = await Promise.all(
     conversations.map((conv, index) => evaluateConversation(conv, index))
   );
 
-  // Sort results by index to maintain original order
   return results.sort((a, b) => a.index - b.index);
 };

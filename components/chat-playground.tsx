@@ -4,14 +4,15 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Textarea } from "@/components/ui/textarea";
-import { Bot, Download, Send, User, Wrench, Trash2, Edit2, Save, X } from "lucide-react";
+import { Bot, Download, User, Wrench, Trash2, Edit2, Save } from "lucide-react";
 import OpenAI from 'openai';
 import { buildBarbershopPrompt } from '@/lib/prompt-builder';
 import { Completions } from 'openai/resources/chat/completions';
-import { isChatCompletionAssistantMessageParam } from '@/lib/types';
+import { isChatCompletionAssistantMessageParam } from "@/lib/types";
 import { TOOLS } from '@/lib/evaluation';
-import { ToolCallEditor } from './tool-call-editor';
+import { MessageInput } from './message-input';
+import { MessageEditor } from './message-editor';
+import { ToolCallModal } from './tool-call-modal';
 
 interface PlaygroundProps {
   systemPrompt: string;
@@ -53,8 +54,10 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
   const [awaitingToolResponse, setAwaitingToolResponse] = useState<string | null>(null);
   const [savedConversations, setSavedConversations] = useState<{ [key: string]: SavedConversation }>({});
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
-  const [editContent, setEditContent] = useState('');
-  const [editingToolCall, setEditingToolCall] = useState<{ index: number; toolCall: any } | null>(null);
+  const [isToolCallModalOpen, setIsToolCallModalOpen] = useState(false);
+  const [editingToolCall, setEditingToolCall] = useState<any>(null);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [pendingToolCalls, setPendingToolCalls] = useState<Set<string>>(new Set());
 
   const initializeSystemMessage = () => {
     setMessages([
@@ -63,15 +66,27 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
         content: `This is ${DEFAULT_CONFIG.shop_name}, how can I help you?` 
       }
     ]);
+    setPendingToolCalls(new Set());
   };
 
   useEffect(() => {
     initializeSystemMessage();
   }, []);
 
+  const getToolCallIds = () => {
+    const ids: string[] = [];
+    messages.forEach(message => {
+      if (isChatCompletionAssistantMessageParam(message) && message.tool_calls) {
+        message.tool_calls.forEach(tool => {
+          if (tool.id) ids.push(tool.id);
+        });
+      }
+    });
+    return ids;
+  };
+
   const renderToolCalls = (toolCalls: any[], messageIndex: number) => {
     return toolCalls.map((tool: any, i: number) => {
-      // Parse arguments if they're a string
       let parsedArgs = tool.function?.arguments || {};
       if (typeof parsedArgs === 'string') {
         try {
@@ -80,18 +95,23 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
           console.error('Failed to parse arguments:', e);
         }
       }
-  
+
       return (
         <div key={i} className="mt-2 text-sm opacity-80 border-t pt-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <Wrench className="h-4 w-4" />
               <span className="font-medium">{tool.function?.name}</span>
+              <span className="text-xs text-muted-foreground">ID: {tool.id}</span>
             </div>
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setEditingToolCall({ index: messageIndex, toolCall: tool })}
+              onClick={() => {
+                setEditingToolCall(tool);
+                setEditingIndex(messageIndex);
+                setIsToolCallModalOpen(true);
+              }}
             >
               <Edit2 className="h-3 w-3" />
             </Button>
@@ -104,20 +124,36 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     });
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (isToolResponse: boolean, toolCallId?: string) => {
     if (!input.trim()) return;
 
     let newMessage: Completions.ChatCompletionMessageParam;
     
-    if (awaitingToolResponse) {
-      // Format tool response correctly
+    if (isToolResponse && toolCallId) {
+      // Find the tool call to get its name
+      const toolCall = messages.flatMap(msg => 
+        isChatCompletionAssistantMessageParam(msg) ? msg.tool_calls || [] : []
+      ).find(tool => tool.id === toolCallId);
+
       newMessage = {
         role: 'tool',
         content: input,
-        tool_call_id: awaitingToolResponse,
+        tool_call_id: toolCallId,
       };
+      
+      // Remove this tool call from pending
+      const newPendingToolCalls = new Set(pendingToolCalls);
+      newPendingToolCalls.delete(toolCallId);
+      setPendingToolCalls(newPendingToolCalls);
       setAwaitingToolResponse(null);
     } else {
+      // If there are pending tool calls and this is not a tool response,
+      // we should not proceed with the request
+      if (pendingToolCalls.size > 0) {
+        console.warn('There are pending tool calls that need to be responded to first');
+        return;
+      }
+
       newMessage = {
         role: 'user',
         content: input
@@ -135,7 +171,6 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
       });
 
       const formattedPrompt = buildBarbershopPrompt(DEFAULT_CONFIG, systemPrompt);
-      
       const allMessages = [
         { role: 'system', content: formattedPrompt },
         ...messages,
@@ -152,6 +187,12 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
       setMessages(prev => [...prev, assistantMessage]);
 
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
+        // Add all tool calls to pending
+        const newPendingToolCalls = new Set(pendingToolCalls);
+        assistantMessage.tool_calls.forEach(tool => {
+          if (tool.id) newPendingToolCalls.add(tool.id);
+        });
+        setPendingToolCalls(newPendingToolCalls);
         setAwaitingToolResponse(assistantMessage.tool_calls[0].id);
       }
     } catch (error) {
@@ -166,8 +207,6 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     setInput('');
     setAwaitingToolResponse(null);
     setEditingMessageIndex(null);
-    setEditContent('');
-    setEditingToolCall(null);
   };
 
   const renderContent = (content: Completions.ChatCompletionMessageParam['content']): React.ReactNode => {
@@ -256,32 +295,44 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
   };
 
   const handleEditMessage = (index: number) => {
-    const message = messages[index];
-    setEditContent(typeof message.content === 'string' ? message.content : '');
     setEditingMessageIndex(index);
   };
 
-  const handleSaveEdit = (index: number) => {
-    setMessages(prev => prev.map((msg, i) => 
-      i === index ? { ...msg, content: editContent } : msg
-    ));
-    setEditingMessageIndex(null);
-    setEditContent('');
-  };
-
-  const handleSaveToolCall = (messageIndex: number, updatedToolCall: any) => {
+  const handleSaveEdit = (index: number, content: string, isToolCall: boolean, toolCall?: any) => {
     setMessages(prev => prev.map((msg, i) => {
-      if (i === messageIndex && isChatCompletionAssistantMessageParam(msg)) {
-        return {
-          ...msg,
-          tool_calls: msg.tool_calls?.map(tool => 
-            tool.id === updatedToolCall.id ? updatedToolCall : tool
-          )
-        };
+      if (i === index) {
+        if (isToolCall) {
+          return {
+            role: 'assistant',
+            content: '',
+            tool_calls: [toolCall]
+          };
+        } else {
+          return { ...msg, content };
+        }
       }
       return msg;
     }));
+    setEditingMessageIndex(null);
+  };
+
+  const handleToolCallSave = (toolCall: any) => {
+    if (editingIndex !== null) {
+      setMessages(prev => prev.map((msg, i) => {
+        if (i === editingIndex && isChatCompletionAssistantMessageParam(msg)) {
+          return {
+            ...msg,
+            tool_calls: msg.tool_calls?.map(tc => 
+              tc.id === toolCall.id ? toolCall : tc
+            )
+          };
+        }
+        return msg;
+      }));
+    }
+    setIsToolCallModalOpen(false);
     setEditingToolCall(null);
+    setEditingIndex(null);
   };
 
   return (
@@ -350,38 +401,30 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
                     }`}
                   >
                     {editingMessageIndex === index ? (
-                      <div className="flex flex-col gap-2">
-                        <Textarea
-                          value={editContent}
-                          onChange={(e) => setEditContent(e.target.value)}
-                          className="min-h-[100px] bg-background"
-                        />
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => setEditingMessageIndex(null)}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                          <Button
-                            size="sm"
-                            onClick={() => handleSaveEdit(index)}
-                          >
-                            <Save className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
+                      <MessageEditor
+                        content={typeof message.content === 'string' ? message.content : ''}
+                        isToolCall={isChatCompletionAssistantMessageParam(message) && !!message.tool_calls}
+                        toolCall={isChatCompletionAssistantMessageParam(message) && message.tool_calls?.[0]}
+                        onSave={(content: string, isToolCall: boolean, toolCall: any) => 
+                          handleSaveEdit(index, content, isToolCall, toolCall)
+                        }
+                        onCancel={() => setEditingMessageIndex(null)}
+                      />
                     ) : (
                       <>
                         {renderContent(message.content)}
+                        {message.role === 'tool' && (
+                          <div className="mt-1 text-xs text-muted-foreground">
+                            Tool Call ID: {message.tool_call_id}
+                          </div>
+                        )}
                         {isChatCompletionAssistantMessageParam(message) && 
                           message.tool_calls && 
                           renderToolCalls(message.tool_calls, index)}
                       </>
                     )}
                   </div>
-                  {!editingMessageIndex && (message.role === 'user' || message.role === 'assistant' || message.role === 'tool') && (
+                  {!editingMessageIndex && message.role !== 'system' && (
                     <div className="flex justify-end gap-2 mt-1">
                       {(message.role === 'user' || message.role === 'assistant') && (
                         <Button
@@ -418,42 +461,40 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
         </div>
       </ScrollArea>
 
-      {editingToolCall && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="max-w-lg w-full">
-            <ToolCallEditor
-              toolCall={editingToolCall.toolCall}
-              onSave={(updatedToolCall) => handleSaveToolCall(editingToolCall.index, updatedToolCall)}
-              onCancel={() => setEditingToolCall(null)}
-            />
-          </div>
-        </div>
+      <div className="max-w-3xl mx-auto">
+        <MessageInput
+          value={input}
+          onChange={setInput}
+          onSubmit={handleSubmit}
+          isLoading={isLoading}
+          toolCallIds={getToolCallIds()}
+          awaitingToolResponse={awaitingToolResponse}
+          pendingToolCalls={pendingToolCalls}
+        />
+      </div>
+
+      {pendingToolCalls.size > 0 && !awaitingToolResponse && (
+        <p className="text-sm text-destructive mt-2 text-center">
+          There are pending tool calls that need to be responded to before continuing the conversation.
+        </p>
       )}
 
-      <div className="flex gap-2 max-w-3xl mx-auto">
-        <Textarea
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder={awaitingToolResponse 
-            ? "Enter tool response..." 
-            : "Type your message..."}
-          className="resize-none"
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-              e.preventDefault();
-              handleSubmit();
-            }
-          }}
-        />
-        <Button onClick={handleSubmit} disabled={isLoading}>
-          <Send className="h-4 w-4" />
-        </Button>
-      </div>
       {awaitingToolResponse && (
         <p className="text-sm text-muted-foreground mt-2 text-center">
           Waiting for tool response... Please provide the result of the tool call.
         </p>
       )}
+
+      <ToolCallModal
+        isOpen={isToolCallModalOpen}
+        onClose={() => {
+          setIsToolCallModalOpen(false);
+          setEditingToolCall(null);
+          setEditingIndex(null);
+        }}
+        onSave={handleToolCallSave}
+        initialToolCall={editingToolCall}
+      />
     </Card>
   );
 }

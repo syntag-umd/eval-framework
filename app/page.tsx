@@ -7,6 +7,7 @@ import { FileList } from '@/components/file-list';
 import { EvaluationViewer } from '@/components/evaluation-viewer';
 import { JsonFormatTooltip } from '@/components/json-format-tooltip';
 import { PromptEditor } from '@/components/prompt-editor';
+import { ComparisonPromptEditor } from '@/components/comparison-prompt-editor';
 import { ChatPlayground } from '@/components/chat-playground';
 import { Upload, AlertCircle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -16,6 +17,17 @@ import { evaluateConversations, DEFAULT_PROMPT } from '@/lib/evaluation';
 import { type EvaluationResult, type ShopConfig } from '@/lib/types';
 import OpenAI from 'openai';
 import { Completions } from 'openai/resources/chat/completions';
+
+const DEFAULT_COMPARISON_PROMPT = `Compare the following two messages and rate their similarity on a scale from 1 to 100 based on content, tone, and brevity.
+ONLY INCLUDE THE NUMBER IN YOUR RESPONSE.
+
+### Generated Message:
+{{generated_message}}
+
+### Ideal Message:
+{{ideal_message}}
+
+### Rating (1-100):`;
 
 interface ConversationData {
   input: Completions.ChatCompletionMessageParam[];
@@ -38,10 +50,9 @@ export default function Home() {
   const [error, setError] = useState<string>('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationProgress, setEvaluationProgress] = useState(0);
-  const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>(
-    []
-  );
+  const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_PROMPT);
+  const [comparisonPrompt, setComparisonPrompt] = useState(DEFAULT_COMPARISON_PROMPT);
   const [activeTab, setActiveTab] = useState('viewer');
 
   const validateConversationData = (data: any): boolean => {
@@ -85,9 +96,7 @@ export default function Home() {
           }
           setError('');
         } catch (e) {
-          setError(
-            e instanceof Error ? e.message : 'Failed to parse JSON file'
-          );
+          setError(e instanceof Error ? e.message : 'Failed to parse JSON file');
           console.error('Failed to parse JSON:', e);
         }
       };
@@ -112,6 +121,7 @@ export default function Home() {
         openai,
         conversationEntries,
         systemPrompt,
+        comparisonPrompt,
         (progress) => setEvaluationProgress(progress)
       );
 
@@ -217,7 +227,7 @@ export default function Home() {
               <TabsList className="mb-4">
                 <TabsTrigger value="viewer">Conversation Viewer</TabsTrigger>
                 <TabsTrigger value="evaluation">Evaluation Results</TabsTrigger>
-                <TabsTrigger value="prompt">System Prompt</TabsTrigger>
+                <TabsTrigger value="prompts">Prompts</TabsTrigger>
                 <TabsTrigger value="playground">Playground</TabsTrigger>
               </TabsList>
 
@@ -248,11 +258,17 @@ export default function Home() {
                 />
               </TabsContent>
 
-              <TabsContent value="prompt">
-                <PromptEditor
-                  initialPrompt={systemPrompt}
-                  onSave={setSystemPrompt}
-                />
+              <TabsContent value="prompts">
+                <div className="space-y-6">
+                  <PromptEditor
+                    initialPrompt={systemPrompt}
+                    onSave={setSystemPrompt}
+                  />
+                  <ComparisonPromptEditor
+                    initialPrompt={comparisonPrompt}
+                    onSave={setComparisonPrompt}
+                  />
+                </div>
               </TabsContent>
 
               <TabsContent value="playground">
