@@ -6,7 +6,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bot, Download, User, Wrench, Trash2, Edit2, Save, Settings2 } from "lucide-react";
+import { Bot, Download, User, Wrench, Trash2, Edit2, Save, Settings2, SaveAll } from "lucide-react";
 import OpenAI from 'openai';
 import { buildBarbershopPrompt } from '@/lib/prompt-builder';
 import { Completions } from 'openai/resources/chat/completions';
@@ -52,6 +52,7 @@ const DEFAULT_CONFIG: ShopConfig = {
 };
 
 export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
+  const [savedMessageIndices, setSavedMessageIndices] = useState<Set<number>>(new Set());
   const [currentConfig, setCurrentConfig] = useState(DEFAULT_CONFIG);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [messages, setMessages] = useState<Completions.ChatCompletionMessageParam[]>([]);
@@ -247,13 +248,12 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     return null;
   };
 
-  const handleSaveConversation = () => {
+  const handleSaveUpToIndex = (index: number) => {
     if (messages.length === 0) return;
 
-    const lastMessage = messages[messages.length - 1];
     const conversationId = `conversation_${Object.keys(savedConversations).length + 1}`;
     
-    const processedMessages = messages.map(msg => {
+    const processedMessages = messages.slice(0, index + 1).map(msg => {
       if (isChatCompletionAssistantMessageParam(msg) && msg.tool_calls) {
         return {
           ...msg,
@@ -270,6 +270,8 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
       }
       return msg;
     });
+
+    const lastMessage = messages[index];
     
     setSavedConversations(prev => ({
       ...prev,
@@ -289,9 +291,21 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
               })) || []
             : [],
         },
-        config: currentConfig // Include the current config
+        config: currentConfig
       }
     }));
+
+    // Update saved indices
+    setSavedMessageIndices(prev => {
+      const newSet = new Set(prev);
+      newSet.add(index);
+      return newSet;
+    });
+  };
+
+  const handleSaveConversation = () => {
+    if (messages.length === 0) return;
+    handleSaveUpToIndex(messages.length - 1);
   };
 
   const handleDownloadDataset = () => {
@@ -358,14 +372,10 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold">Chat Playground</h2>
         <div className="flex gap-2">
-        <Button variant="outline" onClick={() => setIsConfigModalOpen(true)}>
-            <Settings2 className="h-4 w-4 mr-2" />
-            Configure Shop
-          </Button>
           {messages.length > 0 && (
             <>
               <Button variant="outline" onClick={handleSaveConversation}>
-                <Save className="h-4 w-4 mr-2" />
+                <SaveAll className="h-4 w-4 mr-2" />
                 Save Conversation
               </Button>
               {Object.keys(savedConversations).length > 0 && (
@@ -374,6 +384,10 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
                   Download Dataset ({Object.keys(savedConversations).length})
                 </Button>
               )}
+              <Button variant="outline" onClick={() => setIsConfigModalOpen(true)}>
+                <Settings2 className="h-4 w-4 mr-2" />
+                Configure Shop
+              </Button>
               <Button variant="destructive" onClick={handleClearConversation}>
                 <Trash2 className="h-4 w-4 mr-2" />
                 Clear
@@ -382,13 +396,6 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
           )}
         </div>
       </div>
-
-      <ConfigEditorModal
-        isOpen={isConfigModalOpen}
-        onClose={() => setIsConfigModalOpen(false)}
-        onSave={handleConfigSave}
-        initialConfig={currentConfig}
-      />
 
       <ScrollArea className="h-[400px] mb-4 rounded-md border p-4">
         <div className="space-y-4 max-w-3xl mx-auto">
@@ -455,6 +462,16 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
                   </div>
                   {!editingMessageIndex && message.role !== 'system' && (
                     <div className="flex justify-end gap-2 mt-1">
+                      {(message.role === 'assistant' || message.role === 'tool') && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleSaveUpToIndex(index)}
+                          className={savedMessageIndices.has(index) ? "text-green-500" : ""}
+                        >
+                          <Save className="h-3 w-3" />
+                        </Button>
+                      )}
                       {(message.role === 'user' || message.role === 'assistant') && (
                         <Button
                           size="sm"
@@ -513,6 +530,13 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
           Waiting for tool response... Please provide the result of the tool call.
         </p>
       )}
+
+      <ConfigEditorModal
+        isOpen={isConfigModalOpen}
+        onClose={() => setIsConfigModalOpen(false)}
+        onSave={handleConfigSave}
+        initialConfig={currentConfig}
+      />
 
       <ToolCallModal
         isOpen={isToolCallModalOpen}
