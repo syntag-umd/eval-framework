@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { MessageViewer } from '@/components/message-viewer';
 import { FileList } from '@/components/file-list';
@@ -58,20 +58,7 @@ export default function Home() {
   const [comparisonPrompt, setComparisonPrompt] = useState(DEFAULT_COMPARISON_PROMPT);
   const [activeTab, setActiveTab] = useState('viewer');
 
-  const { apiKey } = useSettings();
-
-  const validateConversationData = (data: any): boolean => {
-    if (typeof data !== 'object' || data === null) return false;
-
-    for (const key in data) {
-      const conv = data[key];
-      if (!Array.isArray(conv.input)) return false;
-      if (!conv.output || typeof conv.output !== 'object') return false;
-      if (typeof conv.output.message !== 'string') return false;
-      if (!Array.isArray(conv.output.tool_calls)) return false;
-    }
-    return true;
-  };
+  const { apiKey, tools } = useSettings();
 
   const onDrop = (acceptedFiles: File[]) => {
     acceptedFiles.forEach((file) => {
@@ -109,6 +96,30 @@ export default function Home() {
     });
   };
 
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'application/json': ['.json'],
+    },
+    multiple: true,
+  });
+
+
+  const validateConversationData = (data: any): boolean => {
+    if (typeof data !== 'object' || data === null) return false;
+
+    for (const key in data) {
+      const conv = data[key];
+      if (!Array.isArray(conv.input)) return false;
+      if (!conv.output || typeof conv.output !== 'object') return false;
+      if (typeof conv.output.message !== 'string') return false;
+      if (!Array.isArray(conv.output.tool_calls)) return false;
+    }
+    return true;
+  };
+
+  
+
   const startEvaluation = async () => {
     setIsEvaluating(true);
     setEvaluationProgress(0);
@@ -127,6 +138,7 @@ export default function Home() {
         conversationEntries,
         systemPrompt,
         comparisonPrompt,
+        tools,
         (progress) => setEvaluationProgress(progress)
       );
 
@@ -138,13 +150,6 @@ export default function Home() {
     }
   };
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'application/json': ['.json'],
-    },
-    multiple: true,
-  });
 
   const filterByFile = (fileName: string) => {
     setCurrentFile(fileName);

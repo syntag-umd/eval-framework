@@ -228,9 +228,10 @@ export const evaluateConversations = async (
   conversations: Array<[string, ConversationData]>,
   defaultPrompt: string,
   comparisonPrompt: string,
+  tools: Tool[],
   onProgress?: (progress: number) => void
 ): Promise<EvaluationResult[]> => {
-  const { tools } = useSettings();
+
   const total = conversations.length;
   let completed = 0;
 
