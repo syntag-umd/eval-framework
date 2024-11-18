@@ -34,7 +34,7 @@ interface Settings {
 export const useSettings = create<Settings>()(
   persist(
     (set) => ({
-      apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY || '',
+      apiKey: process.env.OPENAI_API_KEY || '',
       tools: DEFAULT_TOOLS,
       setApiKey: (key) => set({ apiKey: key }),
       setTools: (tools) => set({ tools }),

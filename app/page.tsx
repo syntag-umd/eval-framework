@@ -20,6 +20,7 @@ import { Completions } from 'openai/resources/chat/completions';
 import { Settings } from 'lucide-react';
 import { useSettings } from '@/lib/settings';
 import { SettingsPage } from '@/components/settings/settings-page'
+import { DEFAULT_CONVERSATION_DATA } from '@/lib/default-data';
 
 const DEFAULT_COMPARISON_PROMPT = `Compare the following two messages and rate their similarity on a scale from 1 to 100 based on content, tone, and brevity.
 ONLY INCLUDE THE NUMBER IN YOUR RESPONSE.
@@ -118,7 +119,24 @@ export default function Home() {
     return true;
   };
 
-  
+  const loadDefaultData = () => {
+    setConversations((prev) => ({
+      ...prev,
+      ...Object.entries(DEFAULT_CONVERSATION_DATA).reduce(
+        (acc, [key, value]) => ({
+          ...acc,
+          [`SynTag Conversation Data:${key}`]: value,
+        }),
+        {}
+      ),
+    }));
+    setFiles((prev) => [...new Set([...prev, 'SynTag Conversation Data'])]);
+    if (!currentFile) {
+      setCurrentFile('SynTag Conversation Data');
+      setCurrentKey(`SynTag Conversation Data:${Object.keys(DEFAULT_CONVERSATION_DATA)[0]}`);
+    }
+    setError('');
+  };
 
   const startEvaluation = async () => {
     setIsEvaluating(true);
@@ -211,6 +229,16 @@ export default function Home() {
               <div className="mt-4">
                 <JsonFormatTooltip />
               </div>
+              <Button 
+                variant="outline" 
+                className="mt-4 w-full"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  loadDefaultData();
+                }}
+              >
+                Load Sample Data
+              </Button>
             </div>
 
             <div className="mt-6">
