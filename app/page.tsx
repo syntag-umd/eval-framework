@@ -17,6 +17,9 @@ import { evaluateConversations, DEFAULT_PROMPT } from '@/lib/evaluation';
 import { type EvaluationResult, type ShopConfig } from '@/lib/types';
 import OpenAI from 'openai';
 import { Completions } from 'openai/resources/chat/completions';
+import { Settings } from 'lucide-react';
+import { useSettings } from '@/lib/settings';
+import { SettingsPage } from '@/components/settings/settings-page'
 
 const DEFAULT_COMPARISON_PROMPT = `Compare the following two messages and rate their similarity on a scale from 1 to 100 based on content, tone, and brevity.
 ONLY INCLUDE THE NUMBER IN YOUR RESPONSE.
@@ -229,7 +232,14 @@ export default function Home() {
                 <TabsTrigger value="evaluation">Evaluation Results</TabsTrigger>
                 <TabsTrigger value="prompts">Prompts</TabsTrigger>
                 <TabsTrigger value="playground">Playground</TabsTrigger>
+                <TabsTrigger value="settings">
+                  <Settings className="h-4 w-4 mr-2" />
+                   Settings
+                </TabsTrigger>
               </TabsList>
+              <TabsContent value="settings">
+                <SettingsPage />
+              </TabsContent>
 
               <TabsContent value="viewer">
                 {currentKey && conversations[currentKey] ? (

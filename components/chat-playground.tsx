@@ -1,5 +1,7 @@
 "use client";
 
+// Update the imports
+import { useSettings } from '@/lib/settings';
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -9,7 +11,6 @@ import OpenAI from 'openai';
 import { buildBarbershopPrompt } from '@/lib/prompt-builder';
 import { Completions } from 'openai/resources/chat/completions';
 import { isChatCompletionAssistantMessageParam } from "@/lib/types";
-import { TOOLS } from '@/lib/evaluation';
 import { MessageInput } from './message-input';
 import { MessageEditor } from './message-editor';
 import { ToolCallModal } from './tool-call-modal';
@@ -58,6 +59,9 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
   const [editingToolCall, setEditingToolCall] = useState<any>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [pendingToolCalls, setPendingToolCalls] = useState<Set<string>>(new Set());
+
+  // Replace TOOLS usage with settings.tools
+  const { tools, apiKey } = useSettings();
 
   const initializeSystemMessage = () => {
     setMessages([
@@ -165,8 +169,9 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     setIsLoading(true);
 
     try {
+      // Update the OpenAI initialization
       const openai = new OpenAI({
-        apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
+        apiKey: apiKey,
         dangerouslyAllowBrowser: true
       });
 
@@ -177,10 +182,12 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
         newMessage
       ] as Completions.ChatCompletionMessageParam[];
 
+      console.log(tools);
+
       const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: allMessages,
-        tools: TOOLS
+        tools: tools
       });
 
       const assistantMessage = response.choices[0].message;
@@ -405,7 +412,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
                         content={typeof message.content === 'string' ? message.content : ''}
                         isToolCall={isChatCompletionAssistantMessageParam(message) && !!message.tool_calls}
                         toolCall={isChatCompletionAssistantMessageParam(message) && message.tool_calls?.[0]}
-                        onSave={(content: string, isToolCall: boolean, toolCall: any) => 
+                        onSave={(content, isToolCall, toolCall) => 
                           handleSaveEdit(index, content, isToolCall, toolCall)
                         }
                         onCancel={() => setEditingMessageIndex(null)}

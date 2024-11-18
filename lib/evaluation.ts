@@ -1,9 +1,12 @@
+
+// Update the imports
+import { Tool, useSettings } from './settings';
 import { OpenAI } from 'openai';
 import { buildBarbershopPrompt } from './prompt-builder';
 import { type ConversationData, type EvaluationResult, isChatCompletionAssistantMessageParam } from './types';
 import { Completions } from 'openai/resources/chat/completions';
 
-export const TOOLS: Completions.ChatCompletionTool[] = [
+export const TOOLS: Tool[] = [
   {
     type: 'function',
     function: {
@@ -227,6 +230,7 @@ export const evaluateConversations = async (
   comparisonPrompt: string,
   onProgress?: (progress: number) => void
 ): Promise<EvaluationResult[]> => {
+  const { tools } = useSettings();
   const total = conversations.length;
   let completed = 0;
 
@@ -301,7 +305,7 @@ export const evaluateConversations = async (
       const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: sanitizedMessages,
-        tools: TOOLS,
+        tools: tools
       });
 
       const responseMessage = response.choices[0].message as Completions.ChatCompletionMessage;
