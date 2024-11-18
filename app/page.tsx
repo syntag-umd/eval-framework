@@ -58,6 +58,8 @@ export default function Home() {
   const [comparisonPrompt, setComparisonPrompt] = useState(DEFAULT_COMPARISON_PROMPT);
   const [activeTab, setActiveTab] = useState('viewer');
 
+  const { apiKey } = useSettings();
+
   const validateConversationData = (data: any): boolean => {
     if (typeof data !== 'object' || data === null) return false;
 
@@ -114,7 +116,7 @@ export default function Home() {
     setActiveTab('evaluation');
 
     const openai = new OpenAI({
-      apiKey: process.env.NEXT_PUBLIC_OPENAI_API_KEY,
+      apiKey: apiKey,
       dangerouslyAllowBrowser: true,
     });
 
