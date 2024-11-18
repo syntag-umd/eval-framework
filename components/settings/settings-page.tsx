@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { useSettings } from '@/lib/settings';
 import { ToolEditor } from './tool-editor';
-import { Plus, RotateCcw, Download, Upload } from 'lucide-react';
+import { Plus, RotateCcw, Download, Upload, AlertCircle } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +19,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export function SettingsPage() {
   const { apiKey, tools, setApiKey, setTools, resetTools } = useSettings();
@@ -123,8 +123,16 @@ export function SettingsPage() {
 
       <div className="space-y-8">
         {/* API Key Section */}
-        <Card className="p-6">
-          <h2 className="text-xl font-semibold mb-4">OpenAI API Key</h2>
+        <Card className={cn(
+          "p-6",
+          !apiKey && "border-red-500"
+        )}>
+          <h2 className="text-xl font-semibold mb-4 flex items-center gap-2">
+            OpenAI API Key
+            {!apiKey && (
+              <AlertCircle className="h-4 w-4 text-red-500" />
+            )}
+          </h2>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="api-key">API Key</Label>
@@ -135,9 +143,17 @@ export function SettingsPage() {
                   value={localApiKey}
                   onChange={(e) => setLocalApiKey(e.target.value)}
                   placeholder="sk-..."
+                  className={cn(
+                    !apiKey && "border-red-500 focus-visible:ring-red-500"
+                  )}
                 />
                 <Button onClick={handleSaveApiKey}>Save</Button>
               </div>
+              {!apiKey && (
+                <p className="text-sm text-red-500 mt-1">
+                  Please set your OpenAI API key to use the chat playground
+                </p>
+              )}
             </div>
           </div>
         </Card>

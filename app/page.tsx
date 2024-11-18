@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { MessageViewer } from '@/components/message-viewer';
 import { FileList } from '@/components/file-list';
@@ -9,18 +9,18 @@ import { JsonFormatTooltip } from '@/components/json-format-tooltip';
 import { PromptEditor } from '@/components/prompt-editor';
 import { ComparisonPromptEditor } from '@/components/comparison-prompt-editor';
 import { ChatPlayground } from '@/components/chat-playground';
-import { Upload, AlertCircle } from 'lucide-react';
+import { Upload, AlertCircle, Settings } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { evaluateConversations, DEFAULT_PROMPT } from '@/lib/evaluation';
-import { type EvaluationResult, type ShopConfig } from '@/lib/types';
+import { type EvaluationResult } from '@/lib/types';
 import OpenAI from 'openai';
-import { Completions } from 'openai/resources/chat/completions';
-import { Settings } from 'lucide-react';
+import { Settings2 } from 'lucide-react';
 import { useSettings } from '@/lib/settings';
-import { SettingsPage } from '@/components/settings/settings-page'
+import { SettingsPage } from '@/components/settings/settings-page';
 import { DEFAULT_CONVERSATION_DATA } from '@/lib/default-data';
+import { useConversationStore } from '@/lib/stores/conversation-store';
 
 const DEFAULT_COMPARISON_PROMPT = `Compare the following two messages and rate their similarity on a scale from 1 to 100 based on content, tone, and brevity.
 ONLY INCLUDE THE NUMBER IN YOUR RESPONSE.
@@ -33,24 +33,10 @@ ONLY INCLUDE THE NUMBER IN YOUR RESPONSE.
 
 ### Rating (1-100):`;
 
-interface ConversationData {
-  input: Completions.ChatCompletionMessageParam[];
-  output: {
-    message: string;
-    tool_calls: any[];
-  };
-  config: ShopConfig;
-}
-
-interface Conversations {
-  [key: string]: ConversationData;
-}
-
 export default function Home() {
-  const [conversations, setConversations] = useState<Conversations>({});
-  const [currentKey, setCurrentKey] = useState<string>('');
   const [files, setFiles] = useState<string[]>([]);
   const [currentFile, setCurrentFile] = useState<string>('');
+  const [currentKey, setCurrentKey] = useState<string>('');
   const [error, setError] = useState<string>('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationProgress, setEvaluationProgress] = useState(0);
@@ -58,8 +44,14 @@ export default function Home() {
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_PROMPT);
   const [comparisonPrompt, setComparisonPrompt] = useState(DEFAULT_COMPARISON_PROMPT);
   const [activeTab, setActiveTab] = useState('viewer');
+  const [isClient, setIsClient] = useState(false);
 
   const { apiKey, tools } = useSettings();
+  const { savedConversations, addConversation } = useConversationStore();
+
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const onDrop = (acceptedFiles: File[]) => {
     acceptedFiles.forEach((file) => {
@@ -72,16 +64,10 @@ export default function Home() {
             throw new Error('Invalid conversation data format');
           }
 
-          setConversations((prev) => ({
-            ...prev,
-            ...Object.entries(jsonData).reduce(
-              (acc, [key, value]) => ({
-                ...acc,
-                [`${file.name}:${key}`]: value,
-              }),
-              {}
-            ),
-          }));
+          Object.entries(jsonData).forEach(([key, value]) => {
+            addConversation(`${file.name}:${key}`, value as any);
+          });
+
           setFiles((prev) => [...new Set([...prev, file.name])]);
           if (!currentFile) {
             setCurrentFile(file.name);
@@ -105,7 +91,6 @@ export default function Home() {
     multiple: true,
   });
 
-
   const validateConversationData = (data: any): boolean => {
     if (typeof data !== 'object' || data === null) return false;
 
@@ -120,16 +105,10 @@ export default function Home() {
   };
 
   const loadDefaultData = () => {
-    setConversations((prev) => ({
-      ...prev,
-      ...Object.entries(DEFAULT_CONVERSATION_DATA).reduce(
-        (acc, [key, value]) => ({
-          ...acc,
-          [`SynTag Conversation Data:${key}`]: value,
-        }),
-        {}
-      ),
-    }));
+    Object.entries(DEFAULT_CONVERSATION_DATA).forEach(([key, value]) => {
+      addConversation(`SynTag Conversation Data:${key}`, value as any);
+    });
+    
     setFiles((prev) => [...new Set([...prev, 'SynTag Conversation Data'])]);
     if (!currentFile) {
       setCurrentFile('SynTag Conversation Data');
@@ -150,7 +129,7 @@ export default function Home() {
     });
 
     try {
-      const conversationEntries = Object.entries(conversations);
+      const conversationEntries = Object.entries(savedConversations);
       const results = await evaluateConversations(
         openai,
         conversationEntries,
@@ -168,10 +147,9 @@ export default function Home() {
     }
   };
 
-
   const filterByFile = (fileName: string) => {
     setCurrentFile(fileName);
-    const firstKeyForFile = Object.keys(conversations).find((key) =>
+    const firstKeyForFile = Object.keys(savedConversations).find((key) =>
       key.startsWith(fileName + ':')
     );
     if (firstKeyForFile) {
@@ -179,7 +157,7 @@ export default function Home() {
     }
   };
 
-  const conversationKeys = Object.keys(conversations).filter((key) =>
+  const conversationKeys = Object.keys(savedConversations).filter((key) =>
     key.startsWith(currentFile + ':')
   );
 
@@ -249,7 +227,7 @@ export default function Home() {
               />
             </div>
 
-            {Object.keys(conversations).length > 0 && (
+            {Object.keys(savedConversations).length > 0 && (
               <Button
                 className="w-full mt-4"
                 onClick={startEvaluation}
@@ -267,9 +245,12 @@ export default function Home() {
                 <TabsTrigger value="evaluation">Evaluation Results</TabsTrigger>
                 <TabsTrigger value="prompts">Prompts</TabsTrigger>
                 <TabsTrigger value="playground">Playground</TabsTrigger>
-                <TabsTrigger value="settings">
-                  <Settings className="h-4 w-4 mr-2" />
-                   Settings
+                <TabsTrigger value="settings" className="relative">
+                  <Settings2 className="h-4 w-4 mr-2" />
+                  Settings
+                  {isClient && !apiKey && (
+                    <AlertCircle className="h-3 w-3 text-red-500 absolute -top-1 -right-1" />
+                  )}
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="settings">
@@ -277,9 +258,9 @@ export default function Home() {
               </TabsContent>
 
               <TabsContent value="viewer">
-                {currentKey && conversations[currentKey] ? (
+                {currentKey && savedConversations[currentKey] ? (
                   <MessageViewer
-                    conversation={conversations[currentKey]}
+                    conversation={savedConversations[currentKey]}
                     currentIndex={currentIndex}
                     total={conversationKeys.length}
                     onPrevious={handlePrevious}
