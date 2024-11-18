@@ -6,14 +6,17 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bot, Download, User, Wrench, Trash2, Edit2, Save } from "lucide-react";
+import { Bot, Download, User, Wrench, Trash2, Edit2, Save, Settings2 } from "lucide-react";
 import OpenAI from 'openai';
 import { buildBarbershopPrompt } from '@/lib/prompt-builder';
 import { Completions } from 'openai/resources/chat/completions';
-import { isChatCompletionAssistantMessageParam } from "@/lib/types";
+import { ShopConfig, isChatCompletionAssistantMessageParam } from "@/lib/types";
 import { MessageInput } from './message-input';
 import { MessageEditor } from './message-editor';
 import { ToolCallModal } from './tool-call-modal';
+import { ConfigEditorModal } from './config-editor-modal';
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 interface PlaygroundProps {
   systemPrompt: string;
@@ -25,10 +28,10 @@ interface SavedConversation {
     message: string;
     tool_calls: any[];
   };
-  config: typeof DEFAULT_CONFIG;
+  config: ShopConfig;
 }
 
-const DEFAULT_CONFIG = {
+const DEFAULT_CONFIG: ShopConfig = {
   shop_name: "Cali's Finest Barberlounge",
   shop_address: "123 Barber Lane, Hairtown",
   shop_schedule: "Mon-Fri: 9am-6pm, Sat: 8am-6pm, Sun: 7am-3pm",
@@ -41,7 +44,7 @@ const DEFAULT_CONFIG = {
     Haircut: ["John", "Mike", "Sarah"],
     Shave: ["John"],
     Trim: ["John"],
-    Beard_Styling: ["Mike"],
+    "Beard Styling": ["Mike"],
     Coloring: ["Sarah"],
     Styling: ["Sarah"]
   },
@@ -49,6 +52,8 @@ const DEFAULT_CONFIG = {
 };
 
 export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
+  const [currentConfig, setCurrentConfig] = useState(DEFAULT_CONFIG);
+  const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [messages, setMessages] = useState<Completions.ChatCompletionMessageParam[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -62,6 +67,12 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
 
   // Replace TOOLS usage with settings.tools
   const { tools, apiKey } = useSettings();
+
+  const handleConfigSave = (newConfig: typeof DEFAULT_CONFIG) => {
+    setCurrentConfig(newConfig);
+    // Reinitialize the conversation with the new config
+    initializeSystemMessage();
+  };
 
   const initializeSystemMessage = () => {
     setMessages([
@@ -175,7 +186,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
         dangerouslyAllowBrowser: true
       });
 
-      const formattedPrompt = buildBarbershopPrompt(DEFAULT_CONFIG, systemPrompt);
+      const formattedPrompt = buildBarbershopPrompt(currentConfig, systemPrompt);
       const allMessages = [
         { role: 'system', content: formattedPrompt },
         ...messages,
@@ -278,7 +289,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
               })) || []
             : [],
         },
-        config: DEFAULT_CONFIG
+        config: currentConfig // Include the current config
       }
     }));
   };
@@ -347,6 +358,10 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold">Chat Playground</h2>
         <div className="flex gap-2">
+        <Button variant="outline" onClick={() => setIsConfigModalOpen(true)}>
+            <Settings2 className="h-4 w-4 mr-2" />
+            Configure Shop
+          </Button>
           {messages.length > 0 && (
             <>
               <Button variant="outline" onClick={handleSaveConversation}>
@@ -367,6 +382,13 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
           )}
         </div>
       </div>
+
+      <ConfigEditorModal
+        isOpen={isConfigModalOpen}
+        onClose={() => setIsConfigModalOpen(false)}
+        onSave={handleConfigSave}
+        initialConfig={currentConfig}
+      />
 
       <ScrollArea className="h-[400px] mb-4 rounded-md border p-4">
         <div className="space-y-4 max-w-3xl mx-auto">
