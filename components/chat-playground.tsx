@@ -1,8 +1,7 @@
 "use client";
 
-// Update the imports
 import { useSettings } from '@/lib/settings';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -10,84 +9,53 @@ import { Bot, Download, User, Wrench, Trash2, Edit2, Save, Settings2, SaveAll } 
 import OpenAI from 'openai';
 import { buildBarbershopPrompt } from '@/lib/prompt-builder';
 import { Completions } from 'openai/resources/chat/completions';
-import { ShopConfig, isChatCompletionAssistantMessageParam } from "@/lib/types";
+import { isChatCompletionAssistantMessageParam } from "@/lib/types";
 import { MessageInput } from './message-input';
 import { MessageEditor } from './message-editor';
 import { ToolCallModal } from './tool-call-modal';
 import { ConfigEditorModal } from './config-editor-modal';
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { useConversationStore } from '@/lib/stores/conversation-store';
+import { useCurrentConversationStore } from '@/lib/stores/current-conversation-store';
 
 interface PlaygroundProps {
   systemPrompt: string;
 }
 
-interface SavedConversation {
-  input: Completions.ChatCompletionMessageParam[];
-  output: {
-    message: string;
-    tool_calls: any[];
-  };
-  config: ShopConfig;
-}
-
-const DEFAULT_CONFIG: ShopConfig = {
-  shop_name: "Cali's Finest Barberlounge",
-  shop_address: "123 Barber Lane, Hairtown",
-  shop_schedule: "Mon-Fri: 9am-6pm, Sat: 8am-6pm, Sun: 7am-3pm",
-  barbers: [
-    { name: "John", services: ["Haircut", "Shave", "Trim"] },
-    { name: "Mike", services: ["Haircut", "Beard Styling"] },
-    { name: "Sarah", services: ["Haircut", "Coloring", "Styling"] }
-  ],
-  services: {
-    Haircut: ["John", "Mike", "Sarah"],
-    Shave: ["John"],
-    Trim: ["John"],
-    "Beard Styling": ["Mike"],
-    Coloring: ["Sarah"],
-    Styling: ["Sarah"]
-  },
-  hardcoded_datetime: new Date().toISOString()
-};
-
 export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
   const [savedMessageIndices, setSavedMessageIndices] = useState<Set<number>>(new Set());
-  const [currentConfig, setCurrentConfig] = useState(DEFAULT_CONFIG);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-  const [messages, setMessages] = useState<Completions.ChatCompletionMessageParam[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [awaitingToolResponse, setAwaitingToolResponse] = useState<string | null>(null);
-  const [savedConversations, setSavedConversations] = useState<{ [key: string]: SavedConversation }>({});
   const [editingMessageIndex, setEditingMessageIndex] = useState<number | null>(null);
   const [isToolCallModalOpen, setIsToolCallModalOpen] = useState(false);
   const [editingToolCall, setEditingToolCall] = useState<any>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
-  const [pendingToolCalls, setPendingToolCalls] = useState<Set<string>>(new Set());
 
-  // Replace TOOLS usage with settings.tools
   const { tools, apiKey } = useSettings();
+  const { savedConversations, addConversation, clearConversations } = useConversationStore();
+  const {
+    messages,
+    currentConfig,
+    pendingToolCalls,
+    awaitingToolResponse,
+    setMessages,
+    addMessage,
+    updateMessage,
+    deleteMessage,
+    setCurrentConfig,
+    setPendingToolCalls,
+    setAwaitingToolResponse,
+    clearConversation
+  } = useCurrentConversationStore();
 
-  const handleConfigSave = (newConfig: typeof DEFAULT_CONFIG) => {
+  const handleConfigSave = (newConfig: typeof currentConfig) => {
     setCurrentConfig(newConfig);
-    // Reinitialize the conversation with the new config
-    initializeSystemMessage();
-  };
-
-  const initializeSystemMessage = () => {
-    setMessages([
-      { 
-        role: 'system', 
-        content: `This is ${DEFAULT_CONFIG.shop_name}, how can I help you?` 
-      }
-    ]);
+    setMessages([{ 
+      role: 'system', 
+      content: `This is ${newConfig.shop_name}, how can I help you?` 
+    }]);
     setPendingToolCalls(new Set());
   };
-
-  useEffect(() => {
-    initializeSystemMessage();
-  }, []);
 
   const getToolCallIds = () => {
     const ids: string[] = [];
@@ -146,25 +114,17 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     let newMessage: Completions.ChatCompletionMessageParam;
     
     if (isToolResponse && toolCallId) {
-      // Find the tool call to get its name
-      const toolCall = messages.flatMap(msg => 
-        isChatCompletionAssistantMessageParam(msg) ? msg.tool_calls || [] : []
-      ).find(tool => tool.id === toolCallId);
-
       newMessage = {
         role: 'tool',
         content: input,
         tool_call_id: toolCallId,
       };
       
-      // Remove this tool call from pending
       const newPendingToolCalls = new Set(pendingToolCalls);
       newPendingToolCalls.delete(toolCallId);
       setPendingToolCalls(newPendingToolCalls);
       setAwaitingToolResponse(null);
     } else {
-      // If there are pending tool calls and this is not a tool response,
-      // we should not proceed with the request
       if (pendingToolCalls.size > 0) {
         console.warn('There are pending tool calls that need to be responded to first');
         return;
@@ -176,12 +136,11 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
       };
     }
 
-    setMessages(prev => [...prev, newMessage]);
+    addMessage(newMessage);
     setInput('');
     setIsLoading(true);
 
     try {
-      // Update the OpenAI initialization
       const openai = new OpenAI({
         apiKey: apiKey,
         dangerouslyAllowBrowser: true
@@ -194,8 +153,6 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
         newMessage
       ] as Completions.ChatCompletionMessageParam[];
 
-      console.log(tools);
-
       const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
         messages: allMessages,
@@ -203,10 +160,9 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
       });
 
       const assistantMessage = response.choices[0].message;
-      setMessages(prev => [...prev, assistantMessage]);
+      addMessage(assistantMessage);
 
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-        // Add all tool calls to pending
         const newPendingToolCalls = new Set(pendingToolCalls);
         assistantMessage.tool_calls.forEach(tool => {
           if (tool.id) newPendingToolCalls.add(tool.id);
@@ -222,9 +178,8 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
   };
 
   const handleClearConversation = () => {
-    initializeSystemMessage();
+    clearConversation();
     setInput('');
-    setAwaitingToolResponse(null);
     setEditingMessageIndex(null);
   };
 
@@ -273,29 +228,25 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
 
     const lastMessage = messages[index];
     
-    setSavedConversations(prev => ({
-      ...prev,
-      [conversationId]: {
-        input: processedMessages.slice(0, -1),
-        output: {
-          message: typeof lastMessage.content === 'string' ? lastMessage.content : '',
-          tool_calls: isChatCompletionAssistantMessageParam(lastMessage)
-            ? lastMessage.tool_calls?.map(tool => ({
-                ...tool,
-                function: {
-                  ...tool.function,
-                  arguments: typeof tool.function.arguments === 'string'
-                    ? JSON.parse(tool.function.arguments)
-                    : tool.function.arguments
-                }
-              })) || []
-            : [],
-        },
-        config: currentConfig
-      }
-    }));
+    addConversation(conversationId, {
+      input: processedMessages.slice(0, -1),
+      output: {
+        message: typeof lastMessage.content === 'string' ? lastMessage.content : '',
+        tool_calls: isChatCompletionAssistantMessageParam(lastMessage)
+          ? lastMessage.tool_calls?.map(tool => ({
+              ...tool,
+              function: {
+                ...tool.function,
+                arguments: typeof tool.function.arguments === 'string'
+                  ? JSON.parse(tool.function.arguments)
+                  : tool.function.arguments
+              }
+            })) || []
+          : [],
+      },
+      config: currentConfig
+    });
 
-    // Update saved indices
     setSavedMessageIndices(prev => {
       const newSet = new Set(prev);
       newSet.add(index);
@@ -318,11 +269,11 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    setSavedConversations({});
+    clearConversations();
   };
 
   const handleDeleteMessage = (index: number) => {
-    setMessages(prev => prev.filter((_, i) => i !== index));
+    deleteMessage(index);
     setEditingMessageIndex(null);
   };
 
@@ -331,36 +282,30 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
   };
 
   const handleSaveEdit = (index: number, content: string, isToolCall: boolean, toolCall?: any) => {
-    setMessages(prev => prev.map((msg, i) => {
-      if (i === index) {
-        if (isToolCall) {
-          return {
-            role: 'assistant',
-            content: '',
-            tool_calls: [toolCall]
-          };
-        } else {
-          return { ...msg, content };
-        }
-      }
-      return msg;
-    }));
+    const updatedMessage = isToolCall ? {
+      role: 'assistant' as const,
+      content: '',
+      tool_calls: [toolCall]
+    } : {
+      ...messages[index],
+      content
+    };
+    updateMessage(index, updatedMessage);
     setEditingMessageIndex(null);
   };
 
   const handleToolCallSave = (toolCall: any) => {
     if (editingIndex !== null) {
-      setMessages(prev => prev.map((msg, i) => {
-        if (i === editingIndex && isChatCompletionAssistantMessageParam(msg)) {
-          return {
-            ...msg,
-            tool_calls: msg.tool_calls?.map(tc => 
-              tc.id === toolCall.id ? toolCall : tc
-            )
-          };
-        }
-        return msg;
-      }));
+      const message = messages[editingIndex];
+      if (isChatCompletionAssistantMessageParam(message)) {
+        const updatedMessage = {
+          ...message,
+          tool_calls: message.tool_calls?.map(tc => 
+            tc.id === toolCall.id ? toolCall : tc
+          )
+        };
+        updateMessage(editingIndex, updatedMessage);
+      }
     }
     setIsToolCallModalOpen(false);
     setEditingToolCall(null);
