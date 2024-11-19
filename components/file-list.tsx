@@ -12,7 +12,7 @@ export function FileList({ files, onFileSelect, currentFile }: FileListProps) {
   return (
     <div className="border rounded-lg">
       <div className="p-4 border-b">
-        <h2 className="font-semibold">Uploaded Files</h2>
+        <h2 className="font-semibold">Uploaded Files ({files.length})</h2>
       </div>
       <ScrollArea className="h-[300px]">
         <div className="p-4">

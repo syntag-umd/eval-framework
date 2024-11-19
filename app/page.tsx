@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { MessageViewer } from '@/components/message-viewer';
 import { FileList } from '@/components/file-list';
@@ -14,7 +14,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { evaluateConversations, DEFAULT_PROMPT } from '@/lib/evaluation';
-import { type EvaluationResult } from '@/lib/types';
+import { type EvaluationResult, type ConversationData, Conversations } from '@/lib/types';
 import OpenAI from 'openai';
 import { Settings2 } from 'lucide-react';
 import { useSettings } from '@/lib/settings';
@@ -33,7 +33,12 @@ ONLY INCLUDE THE NUMBER IN YOUR RESPONSE.
 
 ### Rating (1-100):`;
 
+interface FileConversations {
+  [fileName: string]: any;
+}
+
 export default function Home() {
+  const [fileConversations, setFileConversations] = useState<FileConversations>({});
   const [files, setFiles] = useState<string[]>([]);
   const [currentFile, setCurrentFile] = useState<string>('');
   const [currentKey, setCurrentKey] = useState<string>('');
@@ -46,12 +51,11 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState('viewer');
   const [isClient, setIsClient] = useState(false);
 
-  const { apiKey, tools } = useSettings();
-  const { savedConversations, addConversation } = useConversationStore();
-
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  const { apiKey, tools } = useSettings();
 
   const onDrop = (acceptedFiles: File[]) => {
     acceptedFiles.forEach((file) => {
@@ -64,9 +68,10 @@ export default function Home() {
             throw new Error('Invalid conversation data format');
           }
 
-          Object.entries(jsonData).forEach(([key, value]) => {
-            addConversation(`${file.name}:${key}`, value as any);
-          });
+          setFileConversations(prev => ({
+            ...prev,
+            [file.name]: jsonData
+          }));
 
           setFiles((prev) => [...new Set([...prev, file.name])]);
           if (!currentFile) {
@@ -105,9 +110,10 @@ export default function Home() {
   };
 
   const loadDefaultData = () => {
-    Object.entries(DEFAULT_CONVERSATION_DATA).forEach(([key, value]) => {
-      addConversation(`SynTag Conversation Data:${key}`, value as any);
-    });
+    setFileConversations(prev => ({
+      ...prev,
+      'SynTag Conversation Data': DEFAULT_CONVERSATION_DATA
+    }));
     
     setFiles((prev) => [...new Set([...prev, 'SynTag Conversation Data'])]);
     if (!currentFile) {
@@ -129,10 +135,17 @@ export default function Home() {
     });
 
     try {
-      const conversationEntries = Object.entries(savedConversations);
+      // Convert fileConversations to array of [key, value] pairs
+      const allConversations: Array<[string, any]> = [];
+      Object.entries(fileConversations).forEach(([fileName, conversations]) => {
+        Object.entries(conversations).forEach(([convId, conv]) => {
+          allConversations.push([`${fileName}:${convId}`, conv]);
+        });
+      });
+
       const results = await evaluateConversations(
         openai,
-        conversationEntries,
+        allConversations,
         systemPrompt,
         comparisonPrompt,
         tools,
@@ -149,17 +162,22 @@ export default function Home() {
 
   const filterByFile = (fileName: string) => {
     setCurrentFile(fileName);
-    const firstKeyForFile = Object.keys(savedConversations).find((key) =>
-      key.startsWith(fileName + ':')
-    );
-    if (firstKeyForFile) {
-      setCurrentKey(firstKeyForFile);
+    const conversations = fileConversations[fileName];
+    if (conversations) {
+      const firstKey = Object.keys(conversations)[0];
+      setCurrentKey(`${fileName}:${firstKey}`);
     }
   };
 
-  const conversationKeys = Object.keys(savedConversations).filter((key) =>
-    key.startsWith(currentFile + ':')
-  );
+  const getCurrentConversation = () => {
+    if (!currentKey) return null;
+    const [fileName, convId] = currentKey.split(':');
+    return fileConversations[fileName]?.[convId];
+  };
+
+  const conversationKeys = currentFile ? 
+    Object.keys(fileConversations[currentFile] || {}).map(key => `${currentFile}:${key}`) : 
+    [];
 
   const currentIndex = conversationKeys.indexOf(currentKey);
 
@@ -227,7 +245,7 @@ export default function Home() {
               />
             </div>
 
-            {Object.keys(savedConversations).length > 0 && (
+            {Object.keys(fileConversations).length > 0 && (
               <Button
                 className="w-full mt-4"
                 onClick={startEvaluation}
@@ -258,9 +276,9 @@ export default function Home() {
               </TabsContent>
 
               <TabsContent value="viewer">
-                {currentKey && savedConversations[currentKey] ? (
+                {currentKey && getCurrentConversation() ? (
                   <MessageViewer
-                    conversation={savedConversations[currentKey]}
+                    conversation={getCurrentConversation()!}
                     currentIndex={currentIndex}
                     total={conversationKeys.length}
                     onPrevious={handlePrevious}

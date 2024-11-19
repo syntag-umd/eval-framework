@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ConversationDisplay } from "@/components/conversation-display";
 import { ComparisonPromptEditor } from "@/components/comparison-prompt-editor";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import type { EvaluationResult } from "@/lib/types";
 
 interface EvaluationViewerProps {
@@ -31,6 +32,9 @@ export function EvaluationViewer({
       ? results.reduce((acc, curr) => acc + curr.score, 0) / results.length
       : 0;
 
+  // Sort results by score (ascending)
+  const sortedResults = [...results].sort((a, b) => a.score - b.score);
+
   return (
     <Card className="p-6">
       <div className="mb-6">
@@ -50,26 +54,28 @@ export function EvaluationViewer({
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="space-y-2">
-          {results.map((result) => (
-            <Button
-              key={result.index}
-              variant={selectedResult?.index === result.index ? "secondary" : "ghost"}
-              className="w-full justify-between"
-              onClick={() => setSelectedResult(result)}
-            >
-              <span>Conversation {result.index + 1}</span>
-              <div className="flex items-center gap-2">
-                <span>{result.score}%</span>
-                {result.error ? (
-                  <AlertCircle className="h-4 w-4 text-destructive" />
-                ) : (
-                  <CheckCircle2 className="h-4 w-4 text-green-500" />
-                )}
-              </div>
-            </Button>
-          ))}
-        </div>
+        <ScrollArea className="h-[calc(100vh-16rem)]">
+          <div className="space-y-2 pr-4">
+            {sortedResults.map((result) => (
+              <Button
+                key={result.index}
+                variant={selectedResult?.index === result.index ? "secondary" : "ghost"}
+                className="w-full justify-between"
+                onClick={() => setSelectedResult(result)}
+              >
+                <span>Conversation {result.index + 1}</span>
+                <div className="flex items-center gap-2">
+                  <span>{result.score}%</span>
+                  {result.error ? (
+                    <AlertCircle className="h-4 w-4 text-destructive" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  )}
+                </div>
+              </Button>
+            ))}
+          </div>
+        </ScrollArea>
 
         <div className="md:col-span-3">
           {selectedResult ? (
