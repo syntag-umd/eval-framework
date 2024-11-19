@@ -14,13 +14,13 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { evaluateConversations, DEFAULT_PROMPT } from '@/lib/evaluation';
-import { type EvaluationResult, type ConversationData, Conversations } from '@/lib/types';
+import { type EvaluationResult, type ConversationData } from '@/lib/types';
 import OpenAI from 'openai';
 import { Settings2 } from 'lucide-react';
 import { useSettings } from '@/lib/settings';
 import { SettingsPage } from '@/components/settings/settings-page';
 import { DEFAULT_CONVERSATION_DATA } from '@/lib/default-data';
-import { useConversationStore } from '@/lib/stores/conversation-store';
+import { DEFAULT_EVALUATION_RESULTS } from '@/lib/default-evaluation-results';
 
 const DEFAULT_COMPARISON_PROMPT = `Compare the following two messages and rate their similarity on a scale from 1 to 100 based on content, tone, and brevity.
 ONLY INCLUDE THE NUMBER IN YOUR RESPONSE.
@@ -45,17 +45,17 @@ export default function Home() {
   const [error, setError] = useState<string>('');
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationProgress, setEvaluationProgress] = useState(0);
-  const [evaluationResults, setEvaluationResults] = useState<EvaluationResult[]>([]);
+  const [evaluationResults, setEvaluationResults] = useState<any[]>([]);
   const [systemPrompt, setSystemPrompt] = useState(DEFAULT_PROMPT);
   const [comparisonPrompt, setComparisonPrompt] = useState(DEFAULT_COMPARISON_PROMPT);
   const [activeTab, setActiveTab] = useState('viewer');
   const [isClient, setIsClient] = useState(false);
 
+  const { apiKey, tools } = useSettings();
+
   useEffect(() => {
     setIsClient(true);
   }, []);
-
-  const { apiKey, tools } = useSettings();
 
   const onDrop = (acceptedFiles: File[]) => {
     acceptedFiles.forEach((file) => {
@@ -76,7 +76,8 @@ export default function Home() {
           setFiles((prev) => [...new Set([...prev, file.name])]);
           if (!currentFile) {
             setCurrentFile(file.name);
-            setCurrentKey(`${file.name}:${Object.keys(jsonData)[0]}`);
+            const firstKey = Object.keys(jsonData)[0];
+            setCurrentKey(`${file.name}:${firstKey}`);
           }
           setError('');
         } catch (e) {
@@ -118,7 +119,8 @@ export default function Home() {
     setFiles((prev) => [...new Set([...prev, 'SynTag Conversation Data'])]);
     if (!currentFile) {
       setCurrentFile('SynTag Conversation Data');
-      setCurrentKey(`SynTag Conversation Data:${Object.keys(DEFAULT_CONVERSATION_DATA)[0]}`);
+      const firstKey = Object.keys(DEFAULT_CONVERSATION_DATA)[0];
+      setCurrentKey(`SynTag Conversation Data:${firstKey}`);
     }
     setError('');
   };
@@ -160,12 +162,51 @@ export default function Home() {
     }
   };
 
+  const loadPrecomputedResults = () => {
+    setIsEvaluating(true);
+    setEvaluationProgress(0);
+    setEvaluationResults([]);
+    setActiveTab('evaluation');
+
+    // Simulate loading progress
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 10;
+      setEvaluationProgress(progress);
+      if (progress >= 100) {
+        clearInterval(interval);
+        setEvaluationResults(DEFAULT_EVALUATION_RESULTS);
+        setIsEvaluating(false);
+      }
+    }, 100);
+  };
+
   const filterByFile = (fileName: string) => {
     setCurrentFile(fileName);
     const conversations = fileConversations[fileName];
     if (conversations) {
       const firstKey = Object.keys(conversations)[0];
       setCurrentKey(`${fileName}:${firstKey}`);
+    }
+  };
+
+  const handleDeleteFile = (fileName: string) => {
+    setFileConversations(prev => {
+      const newConversations = { ...prev };
+      delete newConversations[fileName];
+      return newConversations;
+    });
+    
+    setFiles(prev => prev.filter(f => f !== fileName));
+    
+    if (currentFile === fileName) {
+      const remainingFiles = files.filter(f => f !== fileName);
+      if (remainingFiles.length > 0) {
+        filterByFile(remainingFiles[0]);
+      } else {
+        setCurrentFile('');
+        setCurrentKey('');
+      }
     }
   };
 
@@ -192,6 +233,12 @@ export default function Home() {
       currentIndex < conversationKeys.length - 1 ? currentIndex + 1 : 0;
     setCurrentKey(conversationKeys[newIndex]);
   };
+
+  const isSampleData = 
+    files.length === 1 && 
+    files[0] === 'SynTag Conversation Data' && 
+    Object.keys(fileConversations).length === 1 &&
+    fileConversations['SynTag Conversation Data'] === DEFAULT_CONVERSATION_DATA;
 
   return (
     <div className="min-h-screen bg-background">
@@ -241,18 +288,32 @@ export default function Home() {
               <FileList
                 files={files}
                 onFileSelect={filterByFile}
+                onFileDelete={handleDeleteFile}
                 currentFile={currentFile}
               />
             </div>
 
             {Object.keys(fileConversations).length > 0 && (
-              <Button
-                className="w-full mt-4"
-                onClick={startEvaluation}
-                disabled={isEvaluating}
-              >
-                {isEvaluating ? 'Evaluating...' : 'Evaluate Conversations'}
-              </Button>
+              <div className="space-y-2 mt-4">
+                <Button
+                  className="w-full"
+                  onClick={startEvaluation}
+                  disabled={isEvaluating}
+                >
+                  {isEvaluating ? 'Evaluating...' : 'Evaluate Conversations'}
+                </Button>
+                
+                {isSampleData && (
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    onClick={loadPrecomputedResults}
+                    disabled={isEvaluating}
+                  >
+                    Show precomputed analysis
+                  </Button>
+                )}
+              </div>
             )}
           </div>
 

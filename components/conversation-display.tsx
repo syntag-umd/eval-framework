@@ -13,7 +13,6 @@ interface ConversationDisplayProps {
   idealToolCalls?: any[];
 }
 
-
 const renderContent = (content: Completions.ChatCompletionMessageParam['content']): React.ReactNode => {
   if (typeof content === 'string') {
     return content;
@@ -31,8 +30,6 @@ const renderContent = (content: Completions.ChatCompletionMessageParam['content'
     });
   }
 
-
-  // Handle null or undefined
   return null;
 };
 
@@ -98,8 +95,8 @@ export function ConversationDisplay({
   );
 
   return (
-    <ScrollArea className="h-[400px] rounded-md border p-4">
-      <div className="space-y-4">
+    <ScrollArea className="h-full rounded-md border">
+      <div className="space-y-4 p-4">
         {messages.map((message, index) => renderMessage(message, index))}
 
         {(generatedMessage || generatedToolCalls?.length) && (

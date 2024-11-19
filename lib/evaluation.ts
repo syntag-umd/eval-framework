@@ -194,6 +194,14 @@ const evaluateToolCalls = (
   });
 };
 
+const createTimeoutPromise = (timeoutMs: number) => {
+  return new Promise((_, reject) => {
+    setTimeout(() => {
+      reject(new Error(`Operation timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+  });
+};
+
 export const evaluateMessageSimilarity = async (
   openai: OpenAI,
   generatedMessage: string,
@@ -205,14 +213,17 @@ export const evaluateMessageSimilarity = async (
     .replace('{{ideal_message}}', idealMessage || 'None');
 
   try {
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
-      temperature: 0,
-      max_tokens: 10,
-    });
+    const response = await Promise.race([
+      openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0,
+        max_tokens: 10,
+      }),
+      createTimeoutPromise(10000) // 10 second timeout
+    ]);
 
-    const rating = parseInt(response.choices[0].message?.content?.trim() || '0', 10);
+    const rating = parseInt((response as any).choices[0].message?.content?.trim() || '0', 10);
     return isNaN(rating) ? 0 : Math.max(0, Math.min(rating, 100));
   } catch (error) {
     console.error('Error evaluating message similarity:', error);
