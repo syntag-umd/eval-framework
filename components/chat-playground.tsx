@@ -1,7 +1,7 @@
 "use client";
 
 import { useSettings } from '@/lib/settings';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -16,12 +16,18 @@ import { ToolCallModal } from './tool-call-modal';
 import { ConfigEditorModal } from './config-editor-modal';
 import { useConversationStore } from '@/lib/stores/conversation-store';
 import { useCurrentConversationStore } from '@/lib/stores/current-conversation-store';
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { AlertCircle } from "lucide-react";
 
 interface PlaygroundProps {
   systemPrompt: string;
 }
 
 export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
+  // Local state for pending tool calls using Set<string>
+  const [pendingToolCalls, setPendingToolCalls] = useState<Set<string>>(new Set());
+
+  // Other local states
   const [savedMessageIndices, setSavedMessageIndices] = useState<Set<number>>(new Set());
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [input, setInput] = useState('');
@@ -30,33 +36,46 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
   const [isToolCallModalOpen, setIsToolCallModalOpen] = useState(false);
   const [editingToolCall, setEditingToolCall] = useState<any>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [awaitingToolResponse, setAwaitingToolResponse] = useState<string | null>(null);
 
+  // Centralized store states and methods
   const { tools, apiKey } = useSettings();
   const { savedConversations, addConversation, clearConversations } = useConversationStore();
   const {
     messages,
     currentConfig,
-    pendingToolCalls,
-    awaitingToolResponse,
     setMessages,
     addMessage,
     updateMessage,
     deleteMessage,
     setCurrentConfig,
-    setPendingToolCalls,
-    setAwaitingToolResponse,
     clearConversation
   } = useCurrentConversationStore();
 
-  const handleConfigSave = (newConfig: typeof currentConfig) => {
-    setCurrentConfig(newConfig);
-    setMessages([{ 
-      role: 'system', 
-      content: `This is ${newConfig.shop_name}, how can I help you?` 
-    }]);
+  // Initialize system message
+  const initializeSystemMessage = () => {
+    setMessages([
+      { 
+        role: 'system', 
+        content: `This is ${currentConfig.shop_name}, how can I help you?` 
+      }
+    ]);
     setPendingToolCalls(new Set());
   };
 
+  // Initialize on component mount
+  useEffect(() => {
+    initializeSystemMessage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Handle configuration save
+  const handleConfigSave = (newConfig: typeof currentConfig) => {
+    setCurrentConfig(newConfig);
+    initializeSystemMessage();
+  };
+
+  // Get all tool call IDs
   const getToolCallIds = () => {
     const ids: string[] = [];
     messages.forEach(message => {
@@ -69,6 +88,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     return ids;
   };
 
+  // Render tool calls
   const renderToolCalls = (toolCalls: any[], messageIndex: number) => {
     return toolCalls.map((tool: any, i: number) => {
       let parsedArgs = tool.function?.arguments || {};
@@ -108,6 +128,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     });
   };
 
+  // Handle message submission
   const handleSubmit = async (isToolResponse: boolean, toolCallId?: string) => {
     if (!input.trim()) return;
 
@@ -119,11 +140,13 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
         content: input,
         tool_call_id: toolCallId,
       };
-      
-      const newPendingToolCalls = new Set(pendingToolCalls);
-      newPendingToolCalls.delete(toolCallId);
-      setPendingToolCalls(newPendingToolCalls);
-      setAwaitingToolResponse(null);
+
+      // Remove the responded tool call ID from the Set
+      setPendingToolCalls(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(toolCallId);
+        return newSet;
+      });
     } else {
       if (pendingToolCalls.size > 0) {
         console.warn('There are pending tool calls that need to be responded to first');
@@ -163,11 +186,13 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
       addMessage(assistantMessage);
 
       if (assistantMessage.tool_calls && assistantMessage.tool_calls.length > 0) {
-        const newPendingToolCalls = new Set(pendingToolCalls);
-        assistantMessage.tool_calls.forEach(tool => {
-          if (tool.id) newPendingToolCalls.add(tool.id);
+        setPendingToolCalls(prev => {
+          const newSet = new Set(prev);
+          assistantMessage.tool_calls?.forEach(tool => {
+            if (tool.id) newSet.add(tool.id);
+          });
+          return newSet;
         });
-        setPendingToolCalls(newPendingToolCalls);
         setAwaitingToolResponse(assistantMessage.tool_calls[0].id);
       }
     } catch (error) {
@@ -177,12 +202,16 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     }
   };
 
+  // Handle clearing the conversation
   const handleClearConversation = () => {
     clearConversation();
     setInput('');
     setEditingMessageIndex(null);
+    setSavedMessageIndices(new Set());
+    setPendingToolCalls(new Set());
   };
 
+  // Render message content
   const renderContent = (content: Completions.ChatCompletionMessageParam['content']): React.ReactNode => {
     if (typeof content === 'string') {
       return content;
@@ -203,6 +232,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     return null;
   };
 
+  // Handle saving messages up to a specific index
   const handleSaveUpToIndex = (index: number) => {
     if (messages.length === 0) return;
 
@@ -254,11 +284,13 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     });
   };
 
+  // Handle saving the entire conversation
   const handleSaveConversation = () => {
     if (messages.length === 0) return;
     handleSaveUpToIndex(messages.length - 1);
   };
 
+  // Handle downloading the dataset
   const handleDownloadDataset = () => {
     const blob = new Blob([JSON.stringify(savedConversations, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -272,15 +304,18 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     clearConversations();
   };
 
+  // Handle deleting a message
   const handleDeleteMessage = (index: number) => {
     deleteMessage(index);
     setEditingMessageIndex(null);
   };
 
+  // Handle editing a message
   const handleEditMessage = (index: number) => {
     setEditingMessageIndex(index);
   };
 
+  // Handle saving an edited message
   const handleSaveEdit = (index: number, content: string, isToolCall: boolean, toolCall?: any) => {
     const updatedMessage = isToolCall ? {
       role: 'assistant' as const,
@@ -294,6 +329,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     setEditingMessageIndex(null);
   };
 
+  // Handle saving an edited tool call
   const handleToolCallSave = (toolCall: any) => {
     if (editingIndex !== null) {
       const message = messages[editingIndex];
@@ -459,18 +495,18 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
           onSubmit={handleSubmit}
           isLoading={isLoading}
           toolCallIds={getToolCallIds()}
-          awaitingToolResponse={awaitingToolResponse}
-          pendingToolCalls={pendingToolCalls}
+          awaitingToolResponse={Array.from(pendingToolCalls)[0] || null}
+          pendingToolCalls={new Set(Array.from(pendingToolCalls))}
         />
       </div>
 
-      {pendingToolCalls.size > 0 && !awaitingToolResponse && (
+      {pendingToolCalls.size > 0 && !Array.from(pendingToolCalls)[0] && (
         <p className="text-sm text-destructive mt-2 text-center">
           There are pending tool calls that need to be responded to before continuing the conversation.
         </p>
       )}
 
-      {awaitingToolResponse && (
+      {Array.from(pendingToolCalls)[0] && (
         <p className="text-sm text-muted-foreground mt-2 text-center">
           Waiting for tool response... Please provide the result of the tool call.
         </p>

@@ -13,7 +13,7 @@ import { Upload, AlertCircle, Settings } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { evaluateConversations, DEFAULT_PROMPT } from '@/lib/evaluation';
+import { evaluateConversations } from '@/lib/evaluation';
 import { type EvaluationResult, type ConversationData } from '@/lib/types';
 import OpenAI from 'openai';
 import { Settings2 } from 'lucide-react';
@@ -21,6 +21,7 @@ import { useSettings } from '@/lib/settings';
 import { SettingsPage } from '@/components/settings/settings-page';
 import { DEFAULT_CONVERSATION_DATA } from '@/lib/default-data';
 import { DEFAULT_EVALUATION_RESULTS } from '@/lib/default-evaluation-results';
+import { usePromptStore } from '@/lib/stores/prompt-store';
 
 const DEFAULT_COMPARISON_PROMPT = `Compare the following two messages and rate their similarity on a scale from 1 to 100 based on content, tone, and brevity.
 ONLY INCLUDE THE NUMBER IN YOUR RESPONSE.
@@ -46,12 +47,16 @@ export default function Home() {
   const [isEvaluating, setIsEvaluating] = useState(false);
   const [evaluationProgress, setEvaluationProgress] = useState(0);
   const [evaluationResults, setEvaluationResults] = useState<any[]>([]);
-  const [systemPrompt, setSystemPrompt] = useState(DEFAULT_PROMPT);
-  const [comparisonPrompt, setComparisonPrompt] = useState(DEFAULT_COMPARISON_PROMPT);
   const [activeTab, setActiveTab] = useState('viewer');
   const [isClient, setIsClient] = useState(false);
 
   const { apiKey, tools } = useSettings();
+  const { 
+    systemPrompt, 
+    comparisonPrompt, 
+    setSystemPrompt, 
+    setComparisonPrompt 
+  } = usePromptStore();
 
   useEffect(() => {
     setIsClient(true);

@@ -1,3 +1,5 @@
+"use client";
+
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Completions } from 'openai/resources/chat/completions';
@@ -6,14 +8,14 @@ import { ShopConfig } from '@/lib/types';
 interface CurrentConversationStore {
   messages: Completions.ChatCompletionMessageParam[];
   currentConfig: ShopConfig;
-  pendingToolCalls: Set<string>;
+  pendingToolCalls: string[];
   awaitingToolResponse: string | null;
   setMessages: (messages: Completions.ChatCompletionMessageParam[]) => void;
   addMessage: (message: Completions.ChatCompletionMessageParam) => void;
   updateMessage: (index: number, message: Completions.ChatCompletionMessageParam) => void;
   deleteMessage: (index: number) => void;
   setCurrentConfig: (config: ShopConfig) => void;
-  setPendingToolCalls: (calls: Set<string>) => void;
+  setPendingToolCalls: (calls: string[]) => void;
   setAwaitingToolResponse: (toolId: string | null) => void;
   clearConversation: () => void;
 }
@@ -48,7 +50,7 @@ export const useCurrentConversationStore = create<CurrentConversationStore>()(
     (set) => ({
       messages: [DEFAULT_SYSTEM_MESSAGE],
       currentConfig: DEFAULT_CONFIG,
-      pendingToolCalls: new Set<string>(),
+      pendingToolCalls: [],
       awaitingToolResponse: null,
       setMessages: (messages) => set({ messages }),
       addMessage: (message) => set((state) => ({ 
@@ -65,7 +67,7 @@ export const useCurrentConversationStore = create<CurrentConversationStore>()(
       setAwaitingToolResponse: (toolId) => set({ awaitingToolResponse: toolId }),
       clearConversation: () => set({
         messages: [DEFAULT_SYSTEM_MESSAGE],
-        pendingToolCalls: new Set<string>(),
+        pendingToolCalls: [],
         awaitingToolResponse: null
       })
     }),
