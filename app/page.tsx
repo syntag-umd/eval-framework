@@ -124,8 +124,8 @@ export default function Home() {
     setEvaluationProgress(0);
     if (!specificIndices) {
       setEvaluationResults([]);
+      setActiveTab('evaluation');
     }
-    setActiveTab('evaluation');
 
     const openai = new OpenAI({
       apiKey: apiKey,
@@ -141,18 +141,14 @@ export default function Home() {
         });
       });
 
-      // Filter conversations if specificIndices is provided
-      const conversationsToEvaluate = specificIndices
-        ? allConversations.filter((_, index) => specificIndices.includes(index))
-        : allConversations;
-
       const results = await evaluateConversations(
         openai,
-        conversationsToEvaluate,
+        allConversations,
         systemPrompt,
         comparisonPrompt,
         tools,
-        (progress) => setEvaluationProgress(progress)
+        (progress) => setEvaluationProgress(progress),
+        specificIndices
       );
 
       if (specificIndices) {

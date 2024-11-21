@@ -330,10 +330,10 @@ export const evaluateConversations = async (
   defaultPrompt: string,
   comparisonPrompt: string,
   tools: Tool[],
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  specificIndices?: number[]
 ): Promise<EvaluationResult[]> => {
-
-  const total = conversations.length;
+  const total = specificIndices ? specificIndices.length : conversations.length;
   let completed = 0;
 
   const sanitizeMessages = (messages: MessageType[]): MessageType[] => {
@@ -403,8 +403,8 @@ export const evaluateConversations = async (
         ...conversation.input
       ];
       const sanitizedMessages = sanitizeMessages(messages);
-      const { evaluationModel } = useModelStore.getState();
       
+      const { evaluationModel } = useModelStore.getState();
       const response = await openai.chat.completions.create({
         model: evaluationModel,
         messages: sanitizedMessages,
@@ -487,9 +487,19 @@ export const evaluateConversations = async (
     }
   };
 
+  // If specificIndices is provided, only evaluate those conversations
+  const conversationsToEvaluate = specificIndices
+    ? conversations.filter((_, index) => specificIndices.includes(index))
+    : conversations;
+
   const results = await Promise.all(
-    conversations.map((conv, index) => evaluateConversation(conv, index))
+    conversationsToEvaluate.map((conv, idx) => {
+      const originalIndex = specificIndices 
+        ? specificIndices[idx]
+        : idx;
+      return evaluateConversation(conv, originalIndex);
+    })
   );
 
-  return results.sort((a, b) => a.index - b.index);
+  return results;
 };
