@@ -16,6 +16,8 @@ import { ToolCallModal } from './tool-call-modal';
 import { ConfigEditorModal } from './config-editor-modal';
 import { useConversationStore } from '@/lib/stores/conversation-store';
 import { useCurrentConversationStore } from '@/lib/stores/current-conversation-store';
+import { useModelStore } from '@/lib/stores/model-store';
+import { ModelSelector } from './model-selector';
 
 interface PlaygroundProps {
   systemPrompt: string;
@@ -34,6 +36,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
 
   // Global state
   const { tools, apiKey } = useSettings();
+  const { chatModel, setChatModel } = useModelStore();
   const { savedConversations, addConversation, clearConversations } = useConversationStore();
   const {
     messages,
@@ -176,7 +179,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
       ] as Completions.ChatCompletionMessageParam[];
 
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: chatModel,
         messages: allMessages,
         tools: tools
       });
@@ -344,7 +347,10 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
   return (
     <Card className="p-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">Chat Playground</h2>
+        <div className="flex items-center gap-4">
+          <h2 className="text-xl font-semibold">Chat Playground</h2>
+          <ModelSelector value={chatModel} onValueChange={setChatModel} />
+        </div>
         <div className="flex gap-2">
           {messages.length > 0 && (
             <>

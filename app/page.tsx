@@ -23,17 +23,6 @@ import { DEFAULT_CONVERSATION_DATA } from '@/lib/default-data';
 import { DEFAULT_EVALUATION_RESULTS } from '@/lib/default-evaluation-results';
 import { usePromptStore } from '@/lib/stores/prompt-store';
 
-const DEFAULT_COMPARISON_PROMPT = `Compare the following two messages and rate their similarity on a scale from 1 to 100 based on content, tone, and brevity.
-ONLY INCLUDE THE NUMBER IN YOUR RESPONSE.
-
-### Generated Message:
-{{generated_message}}
-
-### Ideal Message:
-{{ideal_message}}
-
-### Rating (1-100):`;
-
 interface FileConversations {
   [fileName: string]: any;
 }

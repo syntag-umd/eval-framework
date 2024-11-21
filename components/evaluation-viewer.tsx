@@ -10,6 +10,8 @@ import { ConversationDisplay } from "@/components/conversation-display";
 import { ComparisonPromptEditor } from "@/components/comparison-prompt-editor";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { useModelStore } from "@/lib/stores/model-store";
+import { ModelSelector } from "./model-selector";
 import type { EvaluationResult } from "@/lib/types";
 
 interface EvaluationViewerProps {
@@ -26,6 +28,8 @@ export function EvaluationViewer({
   const [selectedResult, setSelectedResult] = useState<EvaluationResult | null>(
     null
   );
+
+  const { evaluationModel, setEvaluationModel } = useModelStore();
 
   const averageScore =
     results.length > 0
@@ -71,13 +75,16 @@ export function EvaluationViewer({
     <Card className="p-6 h-[calc(100vh-8rem)] flex flex-col">
       <div className="flex-shrink-0 mb-6">
         <div className="flex justify-between items-center">
-          <div>
-            <h2 className="text-xl font-semibold mb-2">Evaluation Results</h2>
-            {!isLoading && (
-              <p className="text-sm text-muted-foreground">
-                Average Score: {averageScore.toFixed(2)}%
-              </p>
-            )}
+          <div className="flex items-center gap-4">
+            <div>
+              <h2 className="text-xl font-semibold mb-2">Evaluation Results</h2>
+              {!isLoading && (
+                <p className="text-sm text-muted-foreground">
+                  Average Score: {averageScore.toFixed(2)}%
+                </p>
+              )}
+            </div>
+            <ModelSelector value={evaluationModel} onValueChange={setEvaluationModel} />
           </div>
           {results.length > 0 && !isLoading && (
             <Button variant="outline" onClick={handleExportResults}>

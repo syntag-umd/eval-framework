@@ -5,6 +5,7 @@ import { OpenAI } from 'openai';
 import { buildBarbershopPrompt } from './prompt-builder';
 import { type ConversationData, type EvaluationResult, isChatCompletionAssistantMessageParam } from './types';
 import { Completions } from 'openai/resources/chat/completions';
+import { useModelStore } from './stores/model-store';
 
 export const TOOLS: Tool[] = [
   {
@@ -321,6 +322,7 @@ export const evaluateConversations = async (
   tools: Tool[],
   onProgress?: (progress: number) => void
 ): Promise<EvaluationResult[]> => {
+  const { evaluationModel } = useModelStore.getState();
 
   const total = conversations.length;
   let completed = 0;
@@ -394,7 +396,7 @@ export const evaluateConversations = async (
       const sanitizedMessages = sanitizeMessages(messages);
       
       const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
+        model: evaluationModel,
         messages: sanitizedMessages,
         tools: tools
       });
