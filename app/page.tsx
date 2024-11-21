@@ -119,10 +119,12 @@ export default function Home() {
     setError('');
   };
 
-  const startEvaluation = async () => {
+  const startEvaluation = async (specificIndices?: number[]) => {
     setIsEvaluating(true);
     setEvaluationProgress(0);
-    setEvaluationResults([]);
+    if (!specificIndices) {
+      setEvaluationResults([]);
+    }
     setActiveTab('evaluation');
 
     const openai = new OpenAI({
@@ -139,16 +141,32 @@ export default function Home() {
         });
       });
 
+      // Filter conversations if specificIndices is provided
+      const conversationsToEvaluate = specificIndices
+        ? allConversations.filter((_, index) => specificIndices.includes(index))
+        : allConversations;
+
       const results = await evaluateConversations(
         openai,
-        allConversations,
+        conversationsToEvaluate,
         systemPrompt,
         comparisonPrompt,
         tools,
         (progress) => setEvaluationProgress(progress)
       );
 
-      setEvaluationResults(results);
+      if (specificIndices) {
+        // Merge new results with existing results
+        setEvaluationResults(prev => {
+          const updatedResults = [...prev];
+          results.forEach(result => {
+            updatedResults[result.index] = result;
+          });
+          return updatedResults;
+        });
+      } else {
+        setEvaluationResults(results);
+      }
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Evaluation failed');
     } finally {
@@ -291,7 +309,7 @@ export default function Home() {
               <div className="space-y-2 mt-4">
                 <Button
                   className="w-full"
-                  onClick={startEvaluation}
+                  onClick={() => startEvaluation()}
                   disabled={isEvaluating}
                 >
                   {isEvaluating ? 'Evaluating...' : 'Evaluate Conversations'}
@@ -354,6 +372,7 @@ export default function Home() {
                   results={evaluationResults}
                   isLoading={isEvaluating}
                   progress={evaluationProgress}
+                  onRerunEvaluation={startEvaluation}
                 />
               </TabsContent>
 

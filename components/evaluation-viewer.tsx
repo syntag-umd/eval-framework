@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, CheckCircle2, Download } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, RefreshCcw } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ConversationDisplay } from "@/components/conversation-display";
 import { ComparisonPromptEditor } from "@/components/comparison-prompt-editor";
@@ -12,23 +12,27 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useModelStore } from "@/lib/stores/model-store";
 import { ModelSelector } from "./model-selector";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import type { EvaluationResult } from "@/lib/types";
 
 interface EvaluationViewerProps {
   results: EvaluationResult[];
   isLoading: boolean;
   progress: number;
+  onRerunEvaluation?: (indices: number[]) => void;
 }
 
 export function EvaluationViewer({
   results,
   isLoading,
   progress,
+  onRerunEvaluation,
 }: EvaluationViewerProps) {
   const [selectedResult, setSelectedResult] = useState<EvaluationResult | null>(
     null
   );
-
+  const [thresholdPercentage, setThresholdPercentage] = useState<string>("");
   const { evaluationModel, setEvaluationModel } = useModelStore();
 
   const averageScore =
@@ -71,6 +75,23 @@ export function EvaluationViewer({
     URL.revokeObjectURL(url);
   };
 
+  const handleThresholdChange = (value: string) => {
+    // Only allow numbers and empty string
+    if (value === '' || (/^\d+$/.test(value) && parseInt(value) <= 100)) {
+      setThresholdPercentage(value);
+    }
+  };
+
+  const getConversationsToRerun = () => {
+    if (!thresholdPercentage) return [];
+    const threshold = parseInt(thresholdPercentage);
+    return results
+      .filter(result => result.score < threshold)
+      .map(result => result.index);
+  };
+
+  const conversationsToRerun = getConversationsToRerun();
+
   return (
     <Card className="p-6 h-[calc(100vh-8rem)] flex flex-col">
       <div className="flex-shrink-0 mb-6">
@@ -86,12 +107,38 @@ export function EvaluationViewer({
             </div>
             <ModelSelector value={evaluationModel} onValueChange={setEvaluationModel} />
           </div>
-          {results.length > 0 && !isLoading && (
-            <Button variant="outline" onClick={handleExportResults}>
-              <Download className="h-4 w-4 mr-2" />
-              Export Results
-            </Button>
-          )}
+          <div className="flex items-center gap-4">
+            {results.length > 0 && !isLoading && (
+              <>
+                <div className="flex items-center gap-2">
+                  <div className="w-[120px]">
+                    <Label htmlFor="threshold" className="sr-only">
+                      Score Threshold
+                    </Label>
+                    <Input
+                      id="threshold"
+                      type="text"
+                      placeholder="Score threshold"
+                      value={thresholdPercentage}
+                      onChange={(e) => handleThresholdChange(e.target.value)}
+                    />
+                  </div>
+                  <Button
+                    variant="outline"
+                    onClick={() => onRerunEvaluation?.(conversationsToRerun)}
+                    disabled={!thresholdPercentage || conversationsToRerun.length === 0}
+                  >
+                    <RefreshCcw className="h-4 w-4 mr-2" />
+                    Re-evaluate {conversationsToRerun.length > 0 && `(${conversationsToRerun.length})`}
+                  </Button>
+                </div>
+                <Button variant="outline" onClick={handleExportResults}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export Results
+                </Button>
+              </>
+            )}
+          </div>
         </div>
         {isLoading && (
           <div className="space-y-2">

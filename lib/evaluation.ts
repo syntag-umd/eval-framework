@@ -1,5 +1,3 @@
-
-// Update the imports
 import { Tool, useSettings } from './settings';
 import { OpenAI } from 'openai';
 import { buildBarbershopPrompt } from './prompt-builder';
@@ -147,7 +145,6 @@ Most importantly, if the customer queries exceed the scope provided by the tools
 and extra information, it is your duty and job to transfer the call to the
 manager of the barbershop using the "Transfer Call To Manager" tool.
 
-
 A couple of other things. Since you are a receptionist, you will be dealing
 with conversations over the phone. Over the phone, your words carry more weight
 - they matter more since you can convey less information than, say, an essay.
@@ -159,14 +156,12 @@ use of shorter communications when needed (quips, comments, etc.) and longer
 communications only when absolutely necessary. In other words, talk like a
 receptionist, and re-imagine yourself as an audio-to-audio model over the phone.
 
-
 Next, know that accuracy is the difference between a booked appointment and an
 annoyed customer. Beyond the basic information about {{shop_name}}
 I am about to provide you, all other information about {{shop_name}} will be
 accessible with 100% accuracy using the tools at your disposal. Therefore,
 all information you convey should come from either the basic information or
 the tool calls.
-
 
 Finally, you should understand that latency is key here. The fact of the matter
 is that using a tool will result in a pause in the conversation flow, which
@@ -266,13 +261,28 @@ const evaluateToolCalls = (
         idealArgs = JSON.parse(idealArgs);
       }
 
-      // Compare the stringified versions of the arguments
-      return JSON.stringify(genArgs) === JSON.stringify(idealArgs);
+      // Convert all values to strings for consistent comparison
+      const stringifyValues = (obj: any): any => {
+        if (obj === null || obj === undefined) return '';
+        if (typeof obj !== 'object') return String(obj);
+        
+        const result: any = Array.isArray(obj) ? [] : {};
+        for (const key in obj) {
+          result[key] = stringifyValues(obj[key]);
+        }
+        return result;
+      };
+
+      const normalizedGenArgs = stringifyValues(genArgs);
+      const normalizedIdealArgs = stringifyValues(idealArgs);
+
+      return JSON.stringify(normalizedGenArgs) === JSON.stringify(normalizedIdealArgs);
     } catch {
       return false;
     }
   });
 };
+
 
 const createTimeoutPromise = (timeoutMs: number) => {
   return new Promise((_, reject) => {
@@ -322,7 +332,6 @@ export const evaluateConversations = async (
   tools: Tool[],
   onProgress?: (progress: number) => void
 ): Promise<EvaluationResult[]> => {
-  const { evaluationModel } = useModelStore.getState();
 
   const total = conversations.length;
   let completed = 0;
@@ -394,6 +403,7 @@ export const evaluateConversations = async (
         ...conversation.input
       ];
       const sanitizedMessages = sanitizeMessages(messages);
+      const { evaluationModel } = useModelStore.getState();
       
       const response = await openai.chat.completions.create({
         model: evaluationModel,

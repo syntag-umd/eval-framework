@@ -1,6 +1,5 @@
 "use client";
 
-import { useSettings } from '@/lib/settings';
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -18,6 +17,7 @@ import { useConversationStore } from '@/lib/stores/conversation-store';
 import { useCurrentConversationStore } from '@/lib/stores/current-conversation-store';
 import { useModelStore } from '@/lib/stores/model-store';
 import { ModelSelector } from './model-selector';
+import { useSettings } from '@/lib/settings';
 
 interface PlaygroundProps {
   systemPrompt: string;
@@ -35,7 +35,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
   const [savedMessageIndices, setSavedMessageIndices] = useState<Set<number>>(new Set());
 
   // Global state
-  const { tools, apiKey } = useSettings();
+  const { apiKey, tools } = useSettings();
   const { chatModel, setChatModel } = useModelStore();
   const { savedConversations, addConversation, clearConversations } = useConversationStore();
   const {
@@ -58,7 +58,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     setMessages([
       { 
         role: 'system', 
-        content: `This is ${currentConfig.shop_name}, how can I help you?` 
+        content: buildBarbershopPrompt(currentConfig, systemPrompt)
       }
     ]);
     setPendingToolCalls([]);
@@ -405,7 +405,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
                   ) : (
                     <Bot className="h-4 w-4" />
                   )}
-                </div>
+                 </div>
                 <div className="flex-1">
                   <div
                     className={`rounded-lg p-4 ${

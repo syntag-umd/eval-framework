@@ -40,15 +40,10 @@ const DEFAULT_CONFIG: ShopConfig = {
   hardcoded_datetime: new Date().toISOString()
 };
 
-const DEFAULT_SYSTEM_MESSAGE = {
-  role: 'system' as const,
-  content: `This is ${DEFAULT_CONFIG.shop_name}, how can I help you?`
-};
-
 export const useCurrentConversationStore = create<CurrentConversationStore>()(
   persist(
     (set) => ({
-      messages: [DEFAULT_SYSTEM_MESSAGE],
+      messages: [],
       currentConfig: DEFAULT_CONFIG,
       pendingToolCalls: [],
       awaitingToolResponse: null,
@@ -66,7 +61,7 @@ export const useCurrentConversationStore = create<CurrentConversationStore>()(
       setPendingToolCalls: (calls) => set({ pendingToolCalls: calls }),
       setAwaitingToolResponse: (toolId) => set({ awaitingToolResponse: toolId }),
       clearConversation: () => set({
-        messages: [DEFAULT_SYSTEM_MESSAGE],
+        messages: [],
         pendingToolCalls: [],
         awaitingToolResponse: null
       })
