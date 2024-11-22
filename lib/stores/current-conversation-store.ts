@@ -3,24 +3,25 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Completions } from 'openai/resources/chat/completions';
-import { ShopConfig } from '@/lib/types';
 
 interface CurrentConversationStore {
   messages: Completions.ChatCompletionMessageParam[];
-  currentConfig: ShopConfig;
+  currentConfig: Record<string, any>;
   pendingToolCalls: string[];
   awaitingToolResponse: string | null;
+  firstMessage: string;
   setMessages: (messages: Completions.ChatCompletionMessageParam[]) => void;
   addMessage: (message: Completions.ChatCompletionMessageParam) => void;
   updateMessage: (index: number, message: Completions.ChatCompletionMessageParam) => void;
   deleteMessage: (index: number) => void;
-  setCurrentConfig: (config: ShopConfig) => void;
+  setCurrentConfig: (config: Record<string, any>) => void;
   setPendingToolCalls: (calls: string[]) => void;
   setAwaitingToolResponse: (toolId: string | null) => void;
+  setFirstMessage: (message: string) => void;
   clearConversation: () => void;
 }
 
-const DEFAULT_CONFIG: ShopConfig = {
+const DEFAULT_CONFIG: Record<string, any> = {
   shop_name: "Cali's Finest Barberlounge",
   shop_address: "123 Barber Lane, Hairtown",
   shop_schedule: "Mon-Fri: 9am-6pm, Sat: 8am-6pm, Sun: 7am-3pm",
@@ -40,6 +41,8 @@ const DEFAULT_CONFIG: ShopConfig = {
   hardcoded_datetime: new Date().toISOString()
 };
 
+const DEFAULT_FIRST_MESSAGE = "This is Cali's Finest Barberlounge, how can I help you?";
+
 export const useCurrentConversationStore = create<CurrentConversationStore>()(
   persist(
     (set) => ({
@@ -47,6 +50,7 @@ export const useCurrentConversationStore = create<CurrentConversationStore>()(
       currentConfig: DEFAULT_CONFIG,
       pendingToolCalls: [],
       awaitingToolResponse: null,
+      firstMessage: DEFAULT_FIRST_MESSAGE,
       setMessages: (messages) => set({ messages }),
       addMessage: (message) => set((state) => ({ 
         messages: [...state.messages, message] 
@@ -60,6 +64,7 @@ export const useCurrentConversationStore = create<CurrentConversationStore>()(
       setCurrentConfig: (config) => set({ currentConfig: config }),
       setPendingToolCalls: (calls) => set({ pendingToolCalls: calls }),
       setAwaitingToolResponse: (toolId) => set({ awaitingToolResponse: toolId }),
+      setFirstMessage: (message) => set({ firstMessage: message }),
       clearConversation: () => set({
         messages: [],
         pendingToolCalls: [],

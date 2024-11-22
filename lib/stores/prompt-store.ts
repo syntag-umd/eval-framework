@@ -2,7 +2,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { DEFAULT_PROMPT } from '@/lib/evaluation';
+import { DEFAULT_PROMPT } from '@/lib/default-prompt';
 
 const DEFAULT_COMPARISON_PROMPT = `Compare the following two messages and rate their similarity on a scale from 1 to 100 based on content, tone, and brevity.
 ONLY INCLUDE THE NUMBER IN YOUR RESPONSE.

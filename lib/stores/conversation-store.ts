@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { Completions } from 'openai/resources/chat/completions';
-import { ShopConfig } from '@/lib/types';
 
 export interface SavedConversation {
   input: Completions.ChatCompletionMessageParam[];
@@ -9,7 +8,7 @@ export interface SavedConversation {
     message: string;
     tool_calls: any[];
   };
-  config: ShopConfig;
+  config: Record<string, any>;
 }
 
 interface ConversationStore {

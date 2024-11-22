@@ -6,7 +6,7 @@ import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Bot, Download, User, Wrench, Trash2, Edit2, Save, Settings2, SaveAll } from "lucide-react";
 import OpenAI from 'openai';
-import { buildBarbershopPrompt } from '@/lib/prompt-builder';
+import { buildSystemPrompt } from '@/lib/prompt-builder';
 import { Completions } from 'openai/resources/chat/completions';
 import { isChatCompletionAssistantMessageParam } from "@/lib/types";
 import { MessageInput } from './message-input';
@@ -18,6 +18,7 @@ import { useCurrentConversationStore } from '@/lib/stores/current-conversation-s
 import { useModelStore } from '@/lib/stores/model-store';
 import { ModelSelector } from './model-selector';
 import { useSettings } from '@/lib/settings';
+import { Input } from "@/components/ui/input";
 
 interface PlaygroundProps {
   systemPrompt: string;
@@ -43,6 +44,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     currentConfig,
     pendingToolCalls,
     awaitingToolResponse,
+    firstMessage,
     setMessages,
     addMessage,
     updateMessage,
@@ -50,15 +52,17 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     setCurrentConfig,
     setPendingToolCalls,
     setAwaitingToolResponse,
+    setFirstMessage,
     clearConversation
   } = useCurrentConversationStore();
 
   // Initialize system message
   const initializeSystemMessage = () => {
+    const formattedPrompt = buildSystemPrompt(currentConfig, systemPrompt);
     setMessages([
       { 
-        role: 'system', 
-        content: buildBarbershopPrompt(currentConfig, systemPrompt)
+        role: 'assistant', 
+        content: firstMessage
       }
     ]);
     setPendingToolCalls([]);
@@ -171,7 +175,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
         dangerouslyAllowBrowser: true
       });
 
-      const formattedPrompt = buildBarbershopPrompt(currentConfig, systemPrompt);
+      const formattedPrompt = buildSystemPrompt(currentConfig, systemPrompt);
       const allMessages = [
         { role: 'system', content: formattedPrompt },
         ...messages,
@@ -201,7 +205,15 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
 
   // Handle clearing the conversation
   const handleClearConversation = () => {
-    clearConversation();
+    // Clear only the messages and related states, preserve config and first message
+    setMessages([
+      { 
+        role: 'assistant', 
+        content: firstMessage
+      }
+    ]);
+    setPendingToolCalls([]);
+    setAwaitingToolResponse(null);
     setInput('');
     setEditingMessageIndex(null);
     setSavedMessageIndices(new Set());
@@ -346,14 +358,15 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
 
   return (
     <Card className="p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
-          <h2 className="text-xl font-semibold">Chat Playground</h2>
-          <ModelSelector value={chatModel} onValueChange={setChatModel} />
-        </div>
-        <div className="flex gap-2">
+      <div className="flex flex-col mb-6">
+        {/* Top Section: Title and Model Selector */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-4">
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-semibold">Chat Playground</h2>
+            <ModelSelector value={chatModel} onValueChange={setChatModel} />
+          </div>
           {messages.length > 0 && (
-            <>
+            <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
               <Button variant="outline" onClick={handleSaveConversation}>
                 <SaveAll className="h-4 w-4 mr-2" />
                 Save Conversation
@@ -372,10 +385,23 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
                 <Trash2 className="h-4 w-4 mr-2" />
                 Clear
               </Button>
-            </>
+            </div>
           )}
         </div>
+
+        {/* Input Section: Full-Width Multiline Input */}
+        {messages.length > 0 && (
+          <div className="w-full">
+            <Input
+              placeholder="Initial assistant message"
+              value={firstMessage}
+              onChange={(e) => setFirstMessage(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+            />
+          </div>
+        )}
       </div>
+
 
       <ScrollArea className="h-[400px] mb-4 rounded-md border p-4">
         <div className="space-y-4 max-w-3xl mx-auto">

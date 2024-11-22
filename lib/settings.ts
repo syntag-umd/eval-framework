@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { TOOLS as DEFAULT_TOOLS } from './evaluation';
+import { TOOLS as DEFAULT_TOOLS } from './default-tools';
 
 interface ToolParameter {
     type: string;

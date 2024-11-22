@@ -1,20 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, CheckCircle2, Download, RefreshCcw } from "lucide-react";
+import { AlertCircle, CheckCircle2, Download, RefreshCcw, Settings2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ConversationDisplay } from "@/components/conversation-display";
 import { ComparisonPromptEditor } from "@/components/comparison-prompt-editor";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import type { EvaluationResult } from "@/lib/types";
 import { useModelStore } from "@/lib/stores/model-store";
 import { ModelSelector } from "./model-selector";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import type { EvaluationResult } from "@/lib/types";
+import { ConfigViewer } from "./config-viewer";
+import { PromptViewer } from "./prompt-viewer";
 
 interface EvaluationViewerProps {
   results: EvaluationResult[];
@@ -29,11 +31,20 @@ export function EvaluationViewer({
   progress,
   onRerunEvaluation,
 }: EvaluationViewerProps) {
-  const [selectedResult, setSelectedResult] = useState<EvaluationResult | null>(
-    null
-  );
+  const [selectedResult, setSelectedResult] = useState<EvaluationResult | null>(null);
   const [thresholdPercentage, setThresholdPercentage] = useState<string>("");
   const { evaluationModel, setEvaluationModel } = useModelStore();
+  const [recentlyReevaluated, setRecentlyReevaluated] = useState<Set<number>>(new Set());
+  const [activeTab, setActiveTab] = useState<"conversation" | "config">("conversation");
+
+  useEffect(() => {
+    if (recentlyReevaluated.size > 0) {
+      const timer = setTimeout(() => {
+        setRecentlyReevaluated(new Set());
+      }, 15000);
+      return () => clearTimeout(timer);
+    }
+  }, [recentlyReevaluated]);
 
   const averageScore =
     results.length > 0
@@ -52,7 +63,6 @@ export function EvaluationViewer({
       },
       results: results.map(result => ({
         ...result,
-        // Clean up the data for export by removing undefined values
         details: result.details ? {
           generatedMessage: result.details.generatedMessage || null,
           idealMessage: result.details.idealMessage || null,
@@ -90,6 +100,14 @@ export function EvaluationViewer({
       .map(result => result.index);
   };
 
+  const handleRerunEvaluation = () => {
+    const indicesToRerun = getConversationsToRerun();
+    if (indicesToRerun.length > 0) {
+      setRecentlyReevaluated(new Set(indicesToRerun));
+      onRerunEvaluation?.(indicesToRerun);
+    }
+  };
+
   const conversationsToRerun = getConversationsToRerun();
 
   return (
@@ -125,7 +143,7 @@ export function EvaluationViewer({
                   </div>
                   <Button
                     variant="outline"
-                    onClick={() => onRerunEvaluation?.(conversationsToRerun)}
+                    onClick={handleRerunEvaluation}
                     disabled={!thresholdPercentage || conversationsToRerun.length === 0}
                   >
                     <RefreshCcw className="h-4 w-4 mr-2" />
@@ -157,7 +175,11 @@ export function EvaluationViewer({
               <Button
                 key={result.index}
                 variant={selectedResult?.index === result.index ? "secondary" : "ghost"}
-                className="w-full justify-between"
+                className={`w-full justify-between transition-colors ${
+                  recentlyReevaluated.has(result.index) 
+                    ? "bg-yellow-100 hover:bg-yellow-200 dark:bg-yellow-900/30 dark:hover:bg-yellow-900/50" 
+                    : ""
+                }`}
                 onClick={() => setSelectedResult(result)}
               >
                 <span>Conversation {result.index + 1}</span>
@@ -184,15 +206,36 @@ export function EvaluationViewer({
                 </Alert>
               )}
               
-              <div className="flex-grow min-h-0">
-                <ConversationDisplay
-                  messages={selectedResult.conversation}
-                  generatedMessage={selectedResult.details?.generatedMessage}
-                  idealMessage={selectedResult.details?.idealMessage}
-                  generatedToolCalls={selectedResult.details?.generatedToolCalls}
-                  idealToolCalls={selectedResult.details?.idealToolCalls}
-                />
-              </div>
+              <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "conversation" | "config")} className="flex-grow flex flex-col min-h-0">
+                <TabsList className="mb-4">
+                  <TabsTrigger value="conversation">Conversation</TabsTrigger>
+                  <TabsTrigger value="config" className="flex items-center gap-2">
+                    <Settings2 className="h-4 w-4" />
+                    Configuration
+                  </TabsTrigger>
+                  <TabsTrigger value="prompt" className="flex items-center gap-2">
+                    Prompt
+                  </TabsTrigger>
+                </TabsList>
+                
+                <TabsContent value="conversation" className="flex-grow min-h-0 mt-0">
+                  <ConversationDisplay
+                    messages={selectedResult.conversation}
+                    generatedMessage={selectedResult.details?.generatedMessage}
+                    idealMessage={selectedResult.details?.idealMessage}
+                    generatedToolCalls={selectedResult.details?.generatedToolCalls}
+                    idealToolCalls={selectedResult.details?.idealToolCalls}
+                  />
+                </TabsContent>
+                
+                <TabsContent value="config" className="flex-grow min-h-0 mt-0">
+                  <ConfigViewer config={selectedResult.config} />
+                </TabsContent>
+
+                <TabsContent value="prompt" className="flex-grow min-h-0 mt-0">
+                  <PromptViewer prompt={selectedResult.prompt} />
+                </TabsContent>
+              </Tabs>
             </div>
           ) : (
             <div className="text-center text-muted-foreground p-12 border rounded-lg h-full flex items-center justify-center">

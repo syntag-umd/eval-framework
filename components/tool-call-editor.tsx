@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,12 +11,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TOOLS } from '@/lib/evaluation';
 import { Card } from '@/components/ui/card';
 import { Save, X } from 'lucide-react';
-import { Completions } from 'openai/resources/chat/completions';
+import { useSettings } from '@/lib/settings';
 
-// Define types for clarity
 interface ToolCallEditorProps {
   toolCall: any;
   onSave: (updatedToolCall: any) => void;
@@ -24,27 +22,17 @@ interface ToolCallEditorProps {
   inline?: boolean;
 }
 
-interface Tool {
-  function: {
-    name: string;
-    parameters: {
-      properties: {
-        [key: string]: any;
-      };
-    };
-  };
-}
-
 export function ToolCallEditor({ toolCall, onSave, onCancel, inline = false }: ToolCallEditorProps) {
   const [selectedTool, setSelectedTool] = useState<string>('');
   const [arguments_, setArguments] = useState<{ [key: string]: any }>({});
   const argumentRefs = useRef<{ [key: string]: HTMLInputElement | null }>({});
+  const { tools } = useSettings();
 
   // Function to get parameters of the selected tool
   const getToolParameters = useCallback((toolName: string) => {
-    const tool = TOOLS.find(t => t.function.name === toolName);
+    const tool = tools.find(t => t.function.name === toolName);
     return tool?.function.parameters?.properties || {};
-  }, []);
+  }, [tools]);
 
   // Initialize state based on toolCall prop
   useEffect(() => {
@@ -97,18 +85,47 @@ export function ToolCallEditor({ toolCall, onSave, onCancel, inline = false }: T
     <Card className={inline ? "" : "p-4"}>
       <div className="space-y-4">
         {/* Tool Selection */}
-        <ToolSelect
-          selectedTool={selectedTool}
-          onToolChange={handleToolChange}
-        />
+        <div className="space-y-2">
+          <Label>Tool</Label>
+          <Select
+            value={selectedTool}
+            onValueChange={handleToolChange}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Select tool" />
+            </SelectTrigger>
+            <SelectContent>
+              {tools.map((tool) => (
+                <SelectItem key={tool.function.name} value={tool.function.name}>
+                  {tool.function.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
         {/* Argument Inputs */}
-        <ArgumentInputs
-          parameters={parameters}
-          arguments_={arguments_}
-          onArgumentChange={handleArgumentChange}
-          argumentRefs={argumentRefs}
-        />
+        <div className="space-y-4">
+          {Object.entries(parameters).map(([key, schema]: [string, any]) => (
+            <div key={key} className="space-y-2">
+              <Label>
+                {key}
+                {schema.required && <span className="text-red-500">*</span>}
+              </Label>
+              <Input
+                ref={(el: HTMLInputElement | null) => { argumentRefs.current[key] = el; }}
+                type="text"
+                value={arguments_[key] || ''}
+                onChange={(e) => handleArgumentChange(key, e.target.value)}
+                placeholder={schema.description || key}
+              />
+
+              {schema.description && (
+                <p className="text-xs text-muted-foreground">{schema.description}</p>
+              )}
+            </div>
+          ))}
+        </div>
 
         {/* Action Buttons */}
         <div className="flex justify-end gap-2">
@@ -130,66 +147,3 @@ export function ToolCallEditor({ toolCall, onSave, onCancel, inline = false }: T
     </Card>
   );
 }
-
-// Memoized ToolSelect Component
-const ToolSelect = React.memo(({ selectedTool, onToolChange }: { selectedTool: string; onToolChange: (tool: string) => void }) => {
-  return (
-    <div className="space-y-2">
-      <Label>Tool</Label>
-      <Select
-        value={selectedTool}
-        onValueChange={onToolChange}
-      >
-        <SelectTrigger>
-          <SelectValue placeholder="Select tool" />
-        </SelectTrigger>
-        <SelectContent>
-          {TOOLS.map((tool: Completions.ChatCompletionTool) => (
-            <SelectItem key={tool.function.name} value={tool.function.name}>
-              {tool.function.name}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
-});
-
-// Memoized ArgumentInputs Component
-const ArgumentInputs = React.memo(
-  ({
-    parameters,
-    arguments_,
-    onArgumentChange,
-    argumentRefs,
-  }: {
-    parameters: { [key: string]: any };
-    arguments_: { [key: string]: any };
-    onArgumentChange: (key: string, value: string) => void;
-    argumentRefs: React.MutableRefObject<{ [key: string]: HTMLInputElement | null }>;
-  }) => {
-    return (
-      <div className="space-y-4">
-        {Object.entries(parameters).map(([key, schema]: [string, any]) => (
-          <div key={key} className="space-y-2">
-            <Label>
-              {key}
-              {schema.required && <span className="text-red-500">*</span>}
-            </Label>
-            <Input
-              ref={(el: HTMLInputElement | null) => { argumentRefs.current[key] = el; }}
-              type="text"
-              value={arguments_[key] || ''}
-              onChange={(e) => onArgumentChange(key, e.target.value)}
-              placeholder={schema.description || key}
-            />
-
-            {schema.description && (
-              <p className="text-xs text-muted-foreground">{schema.description}</p>
-            )}
-          </div>
-        ))}
-      </div>
-    );
-  }
-);

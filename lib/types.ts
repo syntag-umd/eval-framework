@@ -17,21 +17,12 @@ export interface Services {
   [serviceName: string]: string[];
 }
 
-export interface ShopConfig {
-  shop_name: string;
-  shop_address: string;
-  shop_schedule: string;
-  barbers: Barber[];
-  services: Services;
-  hardcoded_datetime: string;
-}
-
 export interface ConversationConfig {
-  config: ShopConfig;
+  config: Record<string, any>;
 }
 
 export interface ConversationData {
-  config: ShopConfig;
+  config: Record<string, any>;
   input: Completions.ChatCompletionMessageParam[];
   output: {
     message: string;
@@ -48,6 +39,8 @@ export interface EvaluationResult {
   score: number;
   error?: string;
   conversation: Completions.ChatCompletionMessageParam[];
+  config: Record<string, any>;
+  prompt: string;
   details?: {
     generatedMessage?: string;
     idealMessage?: string;
