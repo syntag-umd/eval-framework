@@ -24,6 +24,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { usePromptStore } from "@/lib/stores/prompt-store";
 import { buildSystemPrompt } from "@/lib/prompt-builder";
+import { useTimezoneStore } from '@/lib/stores/timezone-store';
+import { TimezoneSelector } from './timezone-selector';
 
 interface ConfigEditorModalProps {
   isOpen: boolean;
@@ -172,12 +174,12 @@ const ValueEditor: React.FC<ValueEditorProps> = ({ keyPath, value, type, onChang
             )}
             {/* **New UI for Adding Fields with Editable Names** */}
             <div className="mt-4 space-y-2">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center justify-center space-x-2">
                 <Input
                   placeholder="New field name"
                   value={newFieldName}
                   onChange={(e) => setNewFieldName(e.target.value)}
-                  className="min-w-[200px] flex-grow" // Ensures a minimum width and allows growth
+                  className="min-w-[200px] flex-grow"
                 />
                 <Select
                   value={newFieldType}
@@ -199,7 +201,7 @@ const ValueEditor: React.FC<ValueEditorProps> = ({ keyPath, value, type, onChang
                   variant="outline"
                   size="sm"
                   onClick={handleAddObjectField}
-                  className="w-[100px] flex items-center justify-center" // Fixed width and centered content
+                  className="w-[100px] flex items-center justify-center"
                 >
                   Add Field
                 </Button>
@@ -266,7 +268,7 @@ const ValueEditor: React.FC<ValueEditorProps> = ({ keyPath, value, type, onChang
                 ) : (
                   <div className="text-red-500">Invalid array format</div>
                 )}
-                <div className="mt-4 flex items-center space-x-2">
+                <div className="mt-4 flex items-center justify-center space-x-2">
                   <Select
                     value={newFieldType}
                     onValueChange={(value) => setNewFieldType(value as ValueType)}
@@ -336,6 +338,7 @@ export function ConfigEditorModal({
   const [activeTab, setActiveTab] = useState<"editor" | "preview">("editor");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { systemPrompt } = usePromptStore();
+  const { timezone, setTimezone } = useTimezoneStore();
 
   // Handler to update values based on key path
   const handleUpdateValue = (path: string[], newValue: any, newType?: ValueType) => {
@@ -456,88 +459,100 @@ export function ConfigEditorModal({
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-5xl h-[80vh] flex flex-col p-0">
-        <div className="p-6 border-b">
-          <DialogHeader>
-            <DialogTitle>Configuration Editor</DialogTitle>
-          </DialogHeader>
+        <DialogHeader className="p-6 border-b">
+          <DialogTitle>Configuration Editor</DialogTitle>
+          
+          <div className="mt-4 grid grid-cols-3 items-center gap-4">
+            {/* Left: Timezone Selector */}
+            <div className="flex items-center gap-2">
+              <Label>Timezone:</Label>
+              <TimezoneSelector value={timezone} onValueChange={setTimezone} />
+            </div>
+
+            {/* Center: TabsList */}
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "editor" | "preview")}>
+              <TabsList className="justify-self-center">
+                <TabsTrigger value="editor">Editor</TabsTrigger>
+                <TabsTrigger value="preview">Prompt Preview</TabsTrigger>
+              </TabsList>
+            </Tabs>
+
+            {/* Right: Import/Export Buttons */}
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={handleExportConfig}>
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+              <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-4 w-4 mr-2" />
+                Import
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json"
+                onChange={handleImportConfig}
+                className="hidden"
+              />
+            </div>
+          </div>
+
           {error && (
-            <Alert variant="destructive" className="mt-4">
+            <Alert variant="destructive" className="mt-4 col-span-3">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
-        </div>
+        </DialogHeader>
 
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "editor" | "preview")} className="flex-1 flex flex-col min-h-0">
-          <div className="px-6 border-b">
-            <TabsList className="mb-4">
-              <TabsTrigger value="editor">Editor</TabsTrigger>
-              <TabsTrigger value="preview">Prompt Preview</TabsTrigger>
-            </TabsList>
-          </div>
-
           <TabsContent value="editor" className="flex-1 min-h-0 p-6 overflow-y-auto">
             <div className="flex flex-col h-full">
-              <div className="flex justify-end gap-2 mb-6">
-                <Button variant="outline" onClick={handleExportConfig}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Export Config
-                </Button>
-                <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
-                  <Upload className="h-4 w-4 mr-2" />
-                  Import Config
-                </Button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json"
-                  onChange={handleImportConfig}
-                  className="hidden"
-                />
+              {/* Centered Add Field Section */}
+              <div className="flex justify-center mb-6">
+                <Card className="w-full max-w-3xl">
+                  <div className="p-4 space-y-2">
+                    <div className="flex flex-col sm:flex-row items-center justify-center space-y-2 sm:space-y-0 sm:space-x-2">
+                      <Input
+                        placeholder="New field name"
+                        value={newFieldName}
+                        onChange={(e) => setNewFieldName(e.target.value)}
+                        className="min-w-[200px] flex-grow"
+                      />
+                      <Select
+                        value={newFieldType}
+                        onValueChange={(value) => setNewFieldType(value as ValueType)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="string">String</SelectItem>
+                          <SelectItem value="number">Number</SelectItem>
+                          <SelectItem value="boolean">Boolean</SelectItem>
+                          <SelectItem value="array">Array</SelectItem>
+                          <SelectItem value="object">Object</SelectItem>
+                          <SelectItem value="date">Date</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        onClick={handleAddField}
+                        disabled={!newFieldName.trim()}
+                        className="w-[100px] flex items-center justify-center"
+                        variant="outline"
+                        size="sm"
+                      >
+                        Add Field
+                      </Button>
+                    </div>
+                    {error && (
+                      <div className="text-red-500 text-sm">{error}</div>
+                    )}
+                  </div>
+                </Card>
               </div>
 
-              <Card className="mb-6">
-                <div className="p-4 space-y-2">
-                  <div className="flex flex-col sm:flex-row items-center space-y-2 sm:space-y-0 sm:space-x-2">
-                    <Input
-                      placeholder="New field name"
-                      value={newFieldName}
-                      onChange={(e) => setNewFieldName(e.target.value)}
-                      className="min-w-[200px] flex-grow"
-                    />
-                    <Select
-                      value={newFieldType}
-                      onValueChange={(value) => setNewFieldType(value as ValueType)}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="string">String</SelectItem>
-                        <SelectItem value="number">Number</SelectItem>
-                        <SelectItem value="boolean">Boolean</SelectItem>
-                        <SelectItem value="array">Array</SelectItem>
-                        <SelectItem value="object">Object</SelectItem>
-                        <SelectItem value="date">Date</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      onClick={handleAddField}
-                      disabled={!newFieldName.trim()}
-                      className="w-[100px] flex items-center justify-center"
-                      variant="outline"
-                      size="sm"
-                    >
-                      Add Field
-                    </Button>
-                  </div>
-                  {error && (
-                    <div className="text-red-500 text-sm">{error}</div>
-                  )}
-                </div>
-
-              </Card>
-
+              {/* Configuration Fields */}
               <div className="flex-1 space-y-4">
                 {Object.entries(config).map(([key, value]) => {
                   const valType: ValueType = determineType(value);

@@ -33,6 +33,7 @@
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "cmdk": "^1.0.4",
+    "date-fns-tz": "^3.2.0",
     "encoding": "^0.1.13",
     "input-otp": "^1.4.1",
     "lucide-react": "^0.344.0",

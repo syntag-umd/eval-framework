@@ -19,6 +19,7 @@ import { useModelStore } from '@/lib/stores/model-store';
 import { ModelSelector } from './model-selector';
 import { useSettings } from '@/lib/settings';
 import { Input } from "@/components/ui/input";
+import { useTimezoneStore } from '@/lib/stores/timezone-store';
 
 interface PlaygroundProps {
   systemPrompt: string;
@@ -34,6 +35,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
   const [savedMessageIndices, setSavedMessageIndices] = useState<Set<number>>(new Set());
+  const { timezone } = useTimezoneStore();
 
   // Global state
   const { apiKey, tools } = useSettings();
@@ -175,7 +177,7 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
         dangerouslyAllowBrowser: true
       });
 
-      const formattedPrompt = buildSystemPrompt(currentConfig, systemPrompt);
+      const formattedPrompt = buildSystemPrompt(currentConfig, systemPrompt, timezone);
       const allMessages = [
         { role: 'system', content: formattedPrompt },
         ...messages,
