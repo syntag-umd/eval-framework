@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bot, Download, User, Wrench, Trash2, Edit2, Save, Settings2, SaveAll } from "lucide-react";
+import { Bot, Download, User, Wrench, Trash2, Edit2, Save, Settings2, SaveAll, FileText } from "lucide-react";
 import OpenAI from 'openai';
 import { buildSystemPrompt } from '@/lib/prompt-builder';
 import { Completions } from 'openai/resources/chat/completions';
@@ -24,6 +24,16 @@ import { useTimezoneStore } from '@/lib/stores/timezone-store';
 interface PlaygroundProps {
   systemPrompt: string;
 }
+
+const SUMMARY_PROMPT = `Analyze the conversation so far and provide a summary including:
+1. Key points of the conversation
+2. Customer information revealed (name, preferences, etc.)
+3. What information is still needed to book an appointment
+4. Current time and shop status (open/closed)
+5. Available services for each barber
+6. Any specific requests or preferences mentioned
+
+Be concise but thorough.`;
 
 export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
   // Local state
@@ -358,6 +368,41 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
     setEditingIndex(null);
   };
 
+  const generateSummary = async () => {
+    setIsLoading(true);
+    try {
+      const openai = new OpenAI({
+        apiKey: apiKey,
+        dangerouslyAllowBrowser: true
+      });
+
+      const formattedPrompt = buildSystemPrompt(currentConfig, systemPrompt, timezone);
+      const allMessages = [
+        { role: 'system', content: formattedPrompt },
+        ...messages,
+        { role: 'user', content: SUMMARY_PROMPT }
+      ] as Completions.ChatCompletionMessageParam[];
+
+      const response = await openai.chat.completions.create({
+        model: chatModel,
+        messages: allMessages
+      });
+
+      console.log(allMessages);
+
+      const summaryMessage = {
+        role: 'assistant' as const,
+        content: response.choices[0].message.content
+      };
+
+      addMessage(summaryMessage);
+    } catch (error) {
+      console.error('Error generating summary:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <Card className="p-6">
       <div className="flex flex-col mb-6">
@@ -369,6 +414,10 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
           </div>
           {messages.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
+              <Button variant="outline" onClick={generateSummary} disabled={isLoading}>
+                <FileText className="h-4 w-4 mr-2" />
+                Generate Summary
+              </Button>
               <Button variant="outline" onClick={handleSaveConversation}>
                 <SaveAll className="h-4 w-4 mr-2" />
                 Save Conversation
