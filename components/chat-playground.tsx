@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Bot, Download, User, Wrench, Trash2, Edit2, Save, Settings2, SaveAll, FileText } from "lucide-react";
+import { Bot, Download, User, Wrench, Trash2, Edit2, Save, Settings2, SaveAll, FileText, Menu as MenuIcon } from "lucide-react";
 import OpenAI from 'openai';
 import { buildSystemPrompt } from '@/lib/prompt-builder';
 import { Completions } from 'openai/resources/chat/completions';
@@ -20,6 +20,7 @@ import { ModelSelector } from './model-selector';
 import { useSettings } from '@/lib/settings';
 import { Input } from "@/components/ui/input";
 import { useTimezoneStore } from '@/lib/stores/timezone-store';
+import { Menubar, MenubarMenu, MenubarTrigger, MenubarContent, MenubarItem, MenubarSeparator, MenubarLabel } from '@/components/ui/menubar';
 
 interface PlaygroundProps {
   systemPrompt: string;
@@ -412,30 +413,66 @@ export function ChatPlayground({ systemPrompt }: PlaygroundProps) {
             <h2 className="text-xl font-semibold">Chat Playground</h2>
             <ModelSelector value={chatModel} onValueChange={setChatModel} />
           </div>
+          
           {messages.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-4 md:mt-0">
-              <Button variant="outline" onClick={generateSummary} disabled={isLoading}>
-                <FileText className="h-4 w-4 mr-2" />
-                Generate Summary
-              </Button>
-              <Button variant="outline" onClick={handleSaveConversation}>
-                <SaveAll className="h-4 w-4 mr-2" />
-                Save Conversation
-              </Button>
-              {Object.keys(savedConversations).length > 0 && (
-                <Button variant="outline" onClick={handleDownloadDataset}>
-                  <Download className="h-4 w-4 mr-2" />
-                  Download Dataset ({Object.keys(savedConversations).length})
-                </Button>
-              )}
-              <Button variant="outline" onClick={() => setIsConfigModalOpen(true)}>
-                <Settings2 className="h-4 w-4 mr-2" />
-                Configure Shop
-              </Button>
-              <Button variant="destructive" onClick={handleClearConversation}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Clear
-              </Button>
+              {/* Menubar */}
+              <Menubar>
+                <MenubarMenu>
+                  <MenubarTrigger asChild>
+                    <Button 
+                      variant="outline" 
+                      aria-label="Options" 
+                      className="flex items-center justify-center p-2 rounded-md hover:bg-gray-100 focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition"
+                    >
+                      <MenuIcon className="h-5 w-5 text-gray-700" />
+                    </Button>
+                  </MenubarTrigger>
+                  <MenubarContent className="w-56">
+                    <MenubarLabel className="px-4 py-2 text-sm font-semibold text-gray-500">
+                      Actions
+                    </MenubarLabel>
+                    <MenubarItem 
+                      onSelect={generateSummary} 
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
+                    >
+                      <FileText className="h-4 w-4 mr-3 text-gray-500" />
+                      Generate Summary
+                    </MenubarItem>
+                    <MenubarItem 
+                      onSelect={handleSaveConversation} 
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
+                    >
+                      <SaveAll className="h-4 w-4 mr-3 text-gray-500" />
+                      Save Conversation
+                    </MenubarItem>
+                    {Object.keys(savedConversations).length > 0 && (
+                      <MenubarItem 
+                        onSelect={handleDownloadDataset} 
+                        className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
+                      >
+                        <Download className="h-4 w-4 mr-3 text-gray-500" />
+                        Download Dataset ({Object.keys(savedConversations).length})
+                      </MenubarItem>
+                    )}
+                    <MenubarSeparator className="my-1" />
+                    <MenubarItem 
+                      onSelect={() => setIsConfigModalOpen(true)} 
+                      className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 transition"
+                    >
+                      <Settings2 className="h-4 w-4 mr-3 text-gray-500" />
+                      Configure Shop
+                    </MenubarItem>
+                    <MenubarItem 
+                      onSelect={handleClearConversation} 
+                      className="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition"
+                    >
+                      <Trash2 className="h-4 w-4 mr-3 text-red-500" />
+                      Clear
+                    </MenubarItem>
+                  </MenubarContent>
+                </MenubarMenu>
+              </Menubar>
             </div>
           )}
         </div>
